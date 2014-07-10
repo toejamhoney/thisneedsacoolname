@@ -1,18 +1,21 @@
 import io
 import os
+import re
 import sys
 import glob
 import time
 import getopt
 import hashlib
+import argparse
 import traceback
 import multiprocessing
 from Queue import Full, Empty
 
-from  peepdf.PDFCore import PDFParser
+import xml_creator
+from JSAnalysis import analyse as analyse
+from JSAnalysis import unescapeHTMLEntities as unescapeHTML
 
 LOCK = multiprocessing.Lock()
-STORAGE_LOCK = multiprocessing.Lock()
 
 class ParserFactory(object):
 
@@ -41,15 +44,15 @@ class ParsedArgs(object):
 class ArgParser(object):
 
     def __init__(self):
-	import argparse
         if not argparse:
             print 'Error in ArgParser. Unable to import argparse'
             sys.exit(1)
         self.parser = argparse.ArgumentParser()
         self.parser.add_argument('pdf_in', help="PDF input for analysis")
+        self.parser.add_argument('-d', '--debug', action='store_true', default=False, help="Print debugging messages, TODO")
         self.parser.add_argument('-o', '--out', default='t-hash-'+time.strftime("%Y-%m-%d_%H-%M-%S")+'.txt', help="Analysis output filename or type. Default to timestamped file in CWD. Options: 'db'||'stdout'||[filename]")
-        self.parser.add_argument('-d', '--debug', action='store_true', default=False, help="Print debugging messages")
-        self.parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Spam the terminal")
+        self.parser.add_argument('--hasher', default='peepdf', help='Specify which type of hasher to use. PeePDF (default) | PDFMiner') 
+        self.parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Spam the terminal, TODO")
 
     def parse(self):
         '''
@@ -106,72 +109,102 @@ class GetOptParser(object):
                 sys.exit(1)
             return o, r
 
+class HasherFactory(object):
+
+    def get_hasher(self, hasher, **kwargs):
+        typ = intern(hasher.lower())
+        if typ is "peepdf":
+            return PeePDFHasher(**kwargs)
+        if typ is "pdfminer":
+            return PDFMinerHasher(**kwargs)
+
 class Hasher(multiprocessing.Process):
     '''
     Hashers generally make hashes of things
-    def __init__(self, qin, storage, counter):
-        multiprocessing.Process.__init__(self)
-        self.qin = qin
-        self.storage = StorageFactory().new_storage(storage)
-        self.counter = counter
-
-    def run(self):
-        self.storage.open()
-        proceed = True
-        while proceed:
-            t_hash = self.qin.get()
-            if not t_hash:
-                write('\nStasher: kill msg recvd\n')
-                proceed = False
-            else:
-                self.storage.store(t_hash)
-                self.counter.inc()
-            self.qin.task_done()
-        self.storage.close()
-        write('\nStasher: Storage closed. Exiting.\n')
     '''
-    def __init__(self, qin, qout, counter, storage):
+    def __init__(self, qin, qout, counter):
         multiprocessing.Process.__init__(self)
         self.qin = qin
         self.qout = qout
         self.counter = counter
-        #self.storage = StorageFactory().new_storage(storage)
 
     def run(self):
-        #self.storage.open()
+        jscript = ''
+        t_hash = ''
+        swflash = ''
+        graph = ''
+        deobf_js = ''
         while True:
             pdf = self.qin.get()
 
             if not pdf:
                 self.qin.task_done()
                 return 0
-
+            
             pdf_name = pdf.rstrip(os.path.sep).rpartition(os.path.sep)[2]
             rv, parsed_pdf = self.parse_pdf(pdf)
 
             if not rv:
-                js = ''
-                t_hash = ''
                 t_str = parsed_pdf
             else:
-                t_hash, t_str = self.get_tree_hash(parsed_pdf)
-                graph = self.make_graph(t_str)
-                jscript = self.get_js(parsed_pdf)
-                swflash = self.get_swf(parsed_pdf)
+                try:
+                    t_hash, t_str = self.get_tree_hash(parsed_pdf)
+                    graph = self.make_graph(t_str)
+                    jscript, deobf_js = self.get_js(parsed_pdf)
+                    swflash = self.get_swf(parsed_pdf)
+                except Exception as e:
+                    print e
+                    t_hash = repr(e)
 
-            self.qout.put({'pdf_md5':pdf_name, 'tree_md5':t_hash, 'tree':t_str, 'obf_js':jscript, 'swf':swflash, 'graph':graph})
-            #self.storage.store( (pdf_name, t_hash, t_str, js, swf) )
+            self.qout.put({'pdf_md5':pdf_name, 'tree_md5':t_hash, 'tree':t_str, 'obf_js':jscript, 'deobf_js':deobf_js, 'swf':swflash, 'graph':graph})
             self.counter.inc()
             self.qin.task_done()
-        #self.storage.close()
 
+    def parse_pdf(self, pdf):
+        return None, 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def make_graph(self, tstr):
-        return 'TODO'
+        return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
+    def get_tree_hash(self, pdf):
+        return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
+    def get_js(self, pdf):
+        return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name, 'Unimplemented'
+    def get_swf(self, pdf):
+        return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
+
+class PDFMinerHasher(Hasher):
+
+    def __init__(self, **kwargs):
+        super(PDFMinerHasher, self).__init__(**kwargs)
+        self.js_list = [] 
+        self.xml = ''
+
+    def parse_pdf(self, pdf):
+        self.xml, self.js_list = xml_creator.create(pdf)
+        return True, None
+
+    def get_tree_hash(self, pdf):
+        m = hashlib.md5()
+        m.update(self.xml)
+        return m.hexdigest(), self.xml
+
+    def get_js(self, pdf):
+        self.js_list = [ self.comment_out(js) for js in self.js_list ]
+        js = '\n\n'.join(self.js_list)
+        #djs = analyse(js, self.xml)
+        djs = 'TODO'
+        return js, djs
+
+    def comment_out(self, js):
+        return re.sub("^(<)", "//", unescapeHTML(js), flags=re.M)
+
+class PeePDFHasher(Hasher):
+
+    from peepdf.PDFCore import PDFParser
 
     def parse_pdf(self, pdf):
         retval = True
 	try:
-            _, pdffile = PDFParser().parse(pdf, forceMode=True, manualAnalysis=True)
+            _, pdffile = self.PDFParser().parse(pdf, forceMode=True, manualAnalysis=True)
         except Exception as e:
             retval = False
             pdffile = '\n'.join([traceback.format_exc(), repr(e)])
@@ -192,7 +225,7 @@ class Hasher(multiprocessing.Process):
         for version in range(pdf.updates+1):
             for obj_id in pdf.body[version].getContainingJS():
                 js += self.do_js_code(obj_id, pdf)
-        return js
+        return js, 'TODO'
 
     def get_tree_hash(self, pdf):
         try:
@@ -285,7 +318,10 @@ class Stasher(multiprocessing.Process):
         self.storage.open()
         proceed = True
         while proceed:
-            t_hash = self.qin.get()
+            try:
+                t_hash = self.qin.get(timeout=15)
+            except Empty:
+                t_hash = None
             if not t_hash:
                 write('\nStasher: kill msg recvd\n')
                 proceed = False
@@ -436,6 +472,7 @@ class ProgressBar(multiprocessing.Process):
         self.msg_qu = qu
 
     def run(self):
+        '''
         while any(not counter.ceil() for counter in self.counters):
             self.io_lock.acquire()
             sys.stdout.write('Filling job queues. \ \r')
@@ -452,6 +489,7 @@ class ProgressBar(multiprocessing.Process):
             time.sleep(.1)
             sys.stdout.flush()
             self.io_lock.release()
+        '''
         while any(not c.complete() for c in self.counters):
             time.sleep(.1)
             for counter in self.counters:
@@ -496,8 +534,9 @@ def write(msg):
 if __name__ == '__main__':
     pdfs = []
     args = ParserFactory().new_parser().parse()
-    num_procs = multiprocessing.cpu_count()/2 - 1
-    #num_procs = multiprocessing.cpu_count() - 2
+    #num_procs = multiprocessing.cpu_count()/2 - 1
+    num_procs = multiprocessing.cpu_count() - 3 
+    num_procs = num_procs if num_procs > 0 else 1
     mgr = multiprocessing.Manager()
 
     if os.path.isdir(args.pdf_in):
@@ -523,8 +562,9 @@ if __name__ == '__main__':
     result_counter = Counter(len(pdfs), 'Stored')
     counters = [job_counter, result_counter]
 
-    hashers = [ Hasher(jobs, results, job_counter, args.out) for cnt in range(num_procs) ]
-    stasher = Stasher(results, args.out, result_counter)
+    hf = HasherFactory()
+    hashers = [ hf.get_hasher(hasher=args.hasher, qin=jobs, qout=results, counter=job_counter) for cnt in range(num_procs) ]
+    stasher = Stasher(qin=results, storage=args.out, counter=result_counter)
     jobber = Jobber(pdfs, jobs, job_validator, counters, num_procs)
     progress = ProgressBar(counters, LOCK, msgs)
 
