@@ -1,6 +1,6 @@
 import argparse, os, sys, xml_creator, re
 from JSAnalysis import analyse as analyse
-from JSAnalysis import unescapeHTMLEntities as unescapeHTML
+from util import unescapeHTMLEntities as unescapeHTML
 
 #temp
 from os.path import basename
@@ -11,7 +11,8 @@ if __name__ == '__main__':
     pdf = {
         'xml': '',
         'javascript': '',
-        'deobfuscated': ''
+        'deobfuscated': '',
+        'swf': '',
     }
     parser = argparse.ArgumentParser()
     parser.add_argument('pdf', help='The PDF to be analyzed')
@@ -23,7 +24,7 @@ if __name__ == '__main__':
         parser.exit(status=0, message='USAGE GOES HERE SOMEDAY')
     else:
         if os.path.exists(args.pdf):
-            pdf['xml'], js = xml_creator.create(args.pdf)
+            pdf['xml'], js, swf = xml_creator.create(args.pdf)
             if args.x:
                 print pdf['xml']
             #print "JS: " + str(js)
@@ -43,6 +44,12 @@ if __name__ == '__main__':
             f = open ('deob_js/' + basename(args.pdf), 'w')
             f.write(pdf['deobfuscated'])
             f.close()
+            if len(swf) > 0:
+                for item in swf:
+                    item = unescapeHTML(item)
+                    pdf['swf'] += item + " \n\n"
+                    #TODO: retrieve actionscript
+            #print pdf['swf']
         else:
-            print 'Unable to find PDF file/directory:', args.pdf_in
+            print 'Unable to find PDF file/directory:', args.pdf
             sys.exit(1)
