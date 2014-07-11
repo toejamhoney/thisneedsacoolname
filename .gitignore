@@ -3,3 +3,6 @@
 *.swp
 *.cfg
 local/*
+*.*.svn*
+*/.svn
+.svn
