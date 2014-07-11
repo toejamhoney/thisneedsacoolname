@@ -77,7 +77,7 @@ class DBGateway(object):
     
     def insert(self, table, **kwargs):
         kwargs = self.format_args(**kwargs)
-        cmd = 'INSERT INTO ' + table + '(' + kwargs.get('cols') + ') VALUES (' + kwargs.get('subs') + ')'
+        cmd = 'INSERT OR REPLACE INTO ' + table + '(' + kwargs.get('cols') + ') VALUES (' + kwargs.get('subs') + ')'
         try:
             self.db_curr.execute(cmd, kwargs.get('vals'))
         except sqlite3.IntegrityError as e:

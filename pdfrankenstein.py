@@ -56,7 +56,7 @@ class ArgParser(object):
 
     def parse(self):
         '''
-        No need to pass anything; defaults to sys.argv (cli input)
+        No need to pass anything; defaults to sys.argv (cli)
         '''
         try:
             parsed = ParsedArgs()
@@ -129,12 +129,12 @@ class Hasher(multiprocessing.Process):
         self.counter = counter
 
     def run(self):
-        jscript = ''
-        t_hash = ''
-        swflash = ''
-        graph = ''
-        deobf_js = ''
         while True:
+            jscript = ''
+            t_hash = ''
+            swflash = ''
+            graph = ''
+            deobf_js = ''
             pdf = self.qin.get()
 
             if not pdf:
@@ -142,6 +142,7 @@ class Hasher(multiprocessing.Process):
                 return 0
             
             pdf_name = pdf.rstrip(os.path.sep).rpartition(os.path.sep)[2]
+            fsize = os.path.getsize(pdf)
             rv, parsed_pdf = self.parse_pdf(pdf)
 
             if not rv:
@@ -156,7 +157,7 @@ class Hasher(multiprocessing.Process):
                     print e
                     t_hash = repr(e)
 
-            self.qout.put({'pdf_md5':pdf_name, 'tree_md5':t_hash, 'tree':t_str, 'obf_js':jscript, 'deobf_js':deobf_js, 'swf':swflash, 'graph':graph})
+            self.qout.put({'fsize':fsize, 'pdf_md5':pdf_name, 'tree_md5':t_hash, 'tree':t_str, 'obf_js':jscript, 'deobf_js':deobf_js, 'swf':swflash, 'graph':graph})
             self.counter.inc()
             self.qin.task_done()
 
@@ -179,13 +180,24 @@ class PDFMinerHasher(Hasher):
         self.xml = ''
 
     def parse_pdf(self, pdf):
-        self.xml, self.js_list = xml_creator.create(pdf)
-        return True, None
+        status = True
+        retval = None
+        try:
+            self.xml, self.js_list = xml_creator.create(pdf)
+        except Exception as e:
+            status = False
+            retval = '<pdf><ParseException pdf="%s"><%s</ParseException></pdf>' % (str(pdf), str(e))
+            write('PDFMinerHasher.parse_pdf():\n\t%s\n' % retval)
+        return status, retval
 
     def get_tree_hash(self, pdf):
         m = hashlib.md5()
-        m.update(self.xml)
-        return m.hexdigest(), self.xml
+        if self.xml:
+            m.update(self.xml)
+            retval = m.hexdigest()
+        else:
+            retval = '0'
+        return retval, self.xml
 
     def get_js(self, pdf):
         self.js_list = [ self.comment_out(js) for js in self.js_list ]
@@ -319,11 +331,12 @@ class Stasher(multiprocessing.Process):
         proceed = True
         while proceed:
             try:
-                t_hash = self.qin.get(timeout=15)
+                t_hash = self.qin.get(timeout=30)
             except Empty:
-                t_hash = None
+                write('\nStasher: Empty job queue\n')
+                break
             if not t_hash:
-                write('\nStasher: kill msg recvd\n')
+                write('\nStasher: Kill message received\n')
                 proceed = False
             else:
                 self.storage.store(t_hash)
@@ -362,7 +375,18 @@ class DbStorage(Storage):
     
     from db_mgmt import DBGateway
     table = 'parsed_pdfs'
-    cols = ( 'pdf_md5', 'tree_md5', 'tree', 'graph', 'obf_js', 'deobf_js', 'swf', 'abc', 'actionscript', 'shellcode', 'bin_blob' )
+    cols = ('pdf_md5',
+        'tree_md5',
+        'tree',
+        'graph',
+        'obf_js',
+        'deobf_js',
+        'swf',
+        'abc',
+        'actionscript',
+        'shellcode',
+        'bin_blob',
+        'fsize')
     primary = 'pdf_md5'
     
     def __init__(self):
