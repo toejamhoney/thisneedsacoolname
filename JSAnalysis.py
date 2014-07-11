@@ -23,7 +23,7 @@ except:
 
 reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
 
-def tree_from_xml (xml):
+"""def tree_from_xml (xml):
     try:
         tree = ET.fromstring(xml)
         return tree
@@ -34,43 +34,43 @@ def tree_from_xml (xml):
             char = re.findall("value\s(\d*?),", e.message)
             xml = re.sub("&#" + char[0] + ";", "", xml)
             return tree_from_xml(xml)
-        else: return None
+        else: return None"""
 
-def create_objs(context, xml):
-    try:
+def create_objs(context, tree):
+    """try:
         tree = tree_from_xml(xml)
     except Exception as e:
         #print "Tree: " + e.message
         return
-    if tree is not None:
-        try: 
-            app = build_pdf_objects.create_app_obj(tree)
-            context.eval("app = " + str(app) + ";")
-            context.eval("app.doc.syncAnnotScan = function () {}")
-            context.eval("app.doc.getAnnots = function () { return app.doc.annots;}")
-            context.eval("app.eval = function (string) { eval(string);}")
-            context.eval("app.newDoc = function () { return '';}")
-            context.eval("app.getString = function () { ret = \"\"; for(var prop in app){ ret += app[prop]; } return ret;}")
-            #print app
-        except Exception as e:
-            #print "App: " + e.message
-            pass
-        try:
-            event = build_pdf_objects.create_event_obj(tree)
-            context.eval("event = " + str(event) + ";")
-            #print event
-        except Exception as e:
-            #print "Event: " + e.message
-            pass
-        try:
-            info = build_pdf_objects.create_info_obj(tree)
-            context.eval("this.info = " + str(info['info']) + ";")
-            context.eval("event.target.info = this.info")
-            context.eval("this.eval = eval")
-            #print info
-        except Exception as e:
-            #print "Info: " + e.message
-            pass
+    if tree is not None:"""
+    try: 
+        app = build_pdf_objects.create_app_obj(tree)
+        context.eval("app = " + str(app) + ";")
+        context.eval("app.doc.syncAnnotScan = function () {}")
+        context.eval("app.doc.getAnnots = function () { return app.doc.annots;}")
+        context.eval("app.eval = function (string) { eval(string);}")
+        context.eval("app.newDoc = function () { return '';}")
+        context.eval("app.getString = function () { ret = \"\"; for(var prop in app){ ret += app[prop]; } return ret;}")
+        #print app
+    except Exception as e:
+        #print "App: " + e.message
+        pass
+    try:
+        event = build_pdf_objects.create_event_obj(tree)
+        context.eval("event = " + str(event) + ";")
+        #print event
+    except Exception as e:
+        #print "Event: " + e.message
+        pass
+    try:
+        info = build_pdf_objects.create_info_obj(tree)
+        context.eval("this.info = " + str(info['info']) + ";")
+        context.eval("event.target.info = this.info")
+        context.eval("this.eval = eval")
+        #print info
+    except Exception as e:
+        #print "Info: " + e.message
+        pass
 
 def eval_loop (code, context, old_msg = ""):
     #print "eval_loop"
@@ -153,14 +153,15 @@ def eval_loop (code, context, old_msg = ""):
         #print e1.message
         return context.eval("evalCode")
 
-def analyse (js, xml):
+def analyse (js, tree):
     context = PyV8.JSContext(Global())
     context.enter()
     context.eval('eval=evalOverride')
     #print context.eval('evalCode')
     if JS_MODULE:
         try:
-            create_objs(context, xml)
+            if tree is not None:
+                create_objs(context, tree)
             eval_loop(js, context)
             #print context.eval('evalCode')
             return context.eval('evalCode')

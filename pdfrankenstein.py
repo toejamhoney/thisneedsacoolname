@@ -177,13 +177,20 @@ class PDFMinerHasher(Hasher):
     def __init__(self, **kwargs):
         super(PDFMinerHasher, self).__init__(**kwargs)
         self.js_list = [] 
+        self.swf_list = []
         self.xml = ''
+        self.tree = None
+    
 
     def parse_pdf(self, pdf):
         status = True
         retval = None
         try:
-            self.xml, self.js_list = xml_creator.create(pdf)
+            PDF = xml_creator.FrankenParser(pdf)
+            self.xml = PDF.xml
+            self.js_list = PDF.javascript
+            self.swf_list = PDF.swf
+            self.tree = PDF.tree
         except Exception as e:
             status = False
             retval = '<pdf><ParseException pdf="%s"><%s</ParseException></pdf>' % (str(pdf), str(e))
@@ -199,11 +206,11 @@ class PDFMinerHasher(Hasher):
             retval = '0'
         return retval, self.xml
 
-    def get_js(self, pdf):
+    def get_js(self, PDF):
         self.js_list = [ self.comment_out(js) for js in self.js_list ]
         js = '\n\n'.join(self.js_list)
-        #djs = analyse(js, self.xml)
-        djs = 'TODO'
+        djs = analyse(js, self.tree)
+        #djs = 'TODO'
         return js, djs
 
     def comment_out(self, js):

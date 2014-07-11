@@ -1,4 +1,4 @@
-import re
+import re, lxml.etree as ET
 from  pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdftypes import PDFStream, PDFObjRef
@@ -7,113 +7,136 @@ from pdfminer.utils import isnumber
 from JSAnalysis import isJavascript
 from SWFAnalysis import isFlash
 
+class FrankenParser(object):
+    def __init__(self, pdf):
+        self.pdf = pdf
+        self.xml = ''
+        self.javascript = []
+        self.deobfuscated = []
+        self.swf = []
+        self.parse()
+        self.tree = self.tree_from_xml(self.xml)
 
-ESC_PAT = re.compile(r'[\000-\037&<>()"\042\047\134\177-\377]')
-def e(s):
-    return ESC_PAT.sub(lambda m:'&#%d;' % ord(m.group(0)), s)
+    def e(self, s):
+        ESC_PAT = re.compile(r'[\000-\037&<>()"\042\047\134\177-\377]')
+        return ESC_PAT.sub(lambda m:'&#%d;' % ord(m.group(0)), s)
 
-def dump(obj, js, swf):
-    res = ""
-    if obj is None:
-        res += '<null />'
-        return res, js, swf
+    def dump(self, obj):
+        res = ""
+        if obj is None:
+            res += '<null />'
+            return res
 
-    if isinstance(obj, dict):
-        res += '<dict size="%' + str(len(obj)) + '">\n'
-        for (k,v) in obj.iteritems():
-            res += '<' + k + '>'
-            tmp, js, swf = dump(v, js, swf)
+        if isinstance(obj, dict):
+            res += '<dict size="%' + str(len(obj)) + '">\n'
+            for (k,v) in obj.iteritems():
+                res += '<' + k + '>'
+                res = self.dump(v)
+                res += '</' + k + '>\n'
+            res += '</dict>'
+            return res
+
+        if isinstance(obj, list):
+            res += '<list size="' + str(len(obj)) + '">\n'
+            for v in obj:
+                res = self.dump(v)
+                res += '\n'
+            res += '</list>'
+            return res
+
+        if isinstance(obj, str):
+            self.check_js(obj)
+            res += self.e(obj)
+            return res
+
+        if isinstance(obj, PDFStream):
+            res += '<stream>\n<props>\n'
+            tmp = self.dump(obj.attrs)
             res += tmp
-            res += '</' + k + '>\n'
-        res += '</dict>'
-        return res, js, swf
+            res += '\n</props>\n'
+            data = obj.get_data()
+            self.check_js(str(data))
+            self.check_swf(str(data))
+            res += '<data size="' + str(len(data)) + '">' + self.e(data) + '</data>\n'
+            res += '</stream>'
+            return res
 
-    if isinstance(obj, list):
-        res += '<list size="' + str(len(obj)) + '">\n'
-        for v in obj:
-            tmp, js, swf = dump(v, js, swf)
-            res += tmp
-            res += '\n'
-        res += '</list>'
-        return res, js, swf
+        if isinstance(obj, PDFObjRef):
+            res += '<ref id="' + str(obj.objid) + '" />'
+            return res
 
-    if isinstance(obj, str):
-        if isJavascript(obj):
-            js.append(e(obj))
-        res += e(obj)
-        return res, js, swf
+        if isinstance(obj, PSKeyword):
+            self.check_js(obj.name)
+            res += '<keyword>' + obj.name + '</keyword>'
+            return res
 
-    if isinstance(obj, PDFStream):
-        res += '<stream>\n<props>\n'
-        tmp, js, swf = dump(obj.attrs, js, swf)
-        res += tmp
-        res += '\n</props>\n'
-        data = obj.get_data()
-        if isJavascript(str(data)):
-            js.append(str(data))
-        if isFlash(str(data)):
-            swf.append(str(data))
-        res += '<data size="' + str(len(data)) + '">' + e(data) + '</data>\n'
-        res += '</stream>'
-        return res, js, swf
+        if isinstance(obj, PSLiteral):
+            self.check_js(obj.name)
+            res += '<literal>' + obj.name + '</literal>'
+            return res
 
-    if isinstance(obj, PDFObjRef):
-        res += '<ref id="' + str(obj.objid) + '" />'
-        return res, js, swf
+        if isnumber(obj):
+            self.check_js(str(obj))
+            res += '<number>' + str(obj) + '</number>'
+            return res
 
-    if isinstance(obj, PSKeyword):
-        if isJavascript(obj.name):
-            js.append(obj.name)
-        res += '<keyword>' + obj.name + '</keyword>'
-        return res, js, swf
+        raise TypeError(obj)
 
-    if isinstance(obj, PSLiteral):
-        if isJavascript(obj.name):
-            js.append(obj.name)
-        res += '<literal>' + obj.name + '</literal>'
-        return res, js, swf
+    # dumptrailers
+    def dumptrailers(self, doc):
+        res = ""
+        for xref in doc.xrefs:
+            res += '<trailer>\n'
+            res += self.dump(xref.trailer)
+            res += '\n</trailer>\n\n'
+        return res
 
-    if isnumber(obj):
-        if isJavascript(str(obj)):
-            js.append(str(obj))
-        res += '<number>' + str(obj) + '</number>'
-        return res, js, swf
+    def parse (self):
+        fp = file(self.pdf, 'rb')
+        parser = PDFParser(fp)
+        doc = PDFDocument(parser)
+        res = '<pdf>'
+        visited = set()
+        #js = []
+        #swf = []
+        for xref in doc.xrefs:
+            for objid in xref.get_objids():
+                if objid in visited: continue
+                visited.add(objid)
+                try:
+                    obj = doc.getobj(objid)
+                    if obj is None: continue
+                    res += '<object id="' + str(objid) + '">\n'
+                    res += self.dump(obj)
+                    res += '\n</object>\n\n'
+                except Exception as e:
+                    print e.message
+        fp.close()
+        res += self.dumptrailers(doc)
+        res += '</pdf>'
+        self.xml=res
+        #print js
+        return
 
-    raise TypeError(obj)
+    def check_js (self, content):
+        if isJavascript(content):
+            self.javascript.append(content)
+        return
 
-# dumptrailers
-def dumptrailers(doc, js, swf):
-    res = ""
-    for xref in doc.xrefs:
-        res += '<trailer>\n'
-        tmp, js, swf = dump(xref.trailer, js, swf)
-        res += tmp
-        res += '\n</trailer>\n\n'
-    return res, js, swf
+    def check_swf(self, content):
+        if isFlash(content):
+            self.swf.append(content)
+        return
 
-def create (fname):
-    fp = file(fname, 'rb')
-    parser = PDFParser(fp)
-    doc = PDFDocument(parser)
-    res = '<pdf>'
-    visited = set()
-    js = []
-    swf = []
-    for xref in doc.xrefs:
-        for objid in xref.get_objids():
-            if objid in visited: continue
-            visited.add(objid)
-            try:
-                obj = doc.getobj(objid)
-                if obj is None: continue
-                res += '<object id="' + str(objid) + '">\n'
-                tmp, js,swf = dump(obj, js, swf)
-                res += tmp
-                res += '\n</object>\n\n'
-            except Exception as e:
-                print e.message
-    fp.close()
-    tmp, js, swf = dumptrailers(doc, js, swf)
-    res += tmp + '</pdf>'
-    #print js
-    return res, js, swf
+    def tree_from_xml (self, xml):
+        try:
+            tree = ET.fromstring(xml)
+            return tree
+        except Exception as e:
+            #print "Tree Error"
+            #print e.message
+            if e.message.find("xmlParseCharRef") > -1:
+                char = re.findall("value\s(\d*?),", e.message)
+                xml = re.sub("&#" + char[0] + ";", "", xml)
+                return self.tree_from_xml(xml)
+            else: return None
