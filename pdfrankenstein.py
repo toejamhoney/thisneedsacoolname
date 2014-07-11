@@ -155,6 +155,8 @@ class Hasher(multiprocessing.Process):
             js = ''
             de_js = ''
             swf = ''
+            fsize = ''
+            pdfsize = ''
             
             '''
             Arguments are validated when Jobber adds them to the queue based
@@ -164,11 +166,9 @@ class Hasher(multiprocessing.Process):
             '''
             try:
                 pdf_name = pdf.rstrip(os.path.sep).rpartition(os.path.sep)[2]
-                fsize = str(os.path.getsize(pdf))
             except Exception as e:
                 err.append('UNEXPECTED OS ERROR:\n%s' % traceback.format_exc())
                 pdf_name = pdf
-                fsize = ''
 
             '''
             The parse_pdf call will return a value that evaluates to false if it
@@ -178,6 +178,8 @@ class Hasher(multiprocessing.Process):
 
             if parsed_pdf:
                 try:
+                    fsize = self.get_file_size(pdf)
+                    pdfsize = self.get_pdf_size(parsed_pdf, err)
                     t_str = self.make_tree_string(parsed_pdf, err)
                     t_hash = self.make_tree_hash(t_str, err)
                     graph = self.make_graph(parsed_pdf, err)
@@ -200,12 +202,24 @@ class Hasher(multiprocessing.Process):
                     'deobf_js':de_js,
                     'swf':swf,
                     'graph':graph,
+                    'pdfsize':pdfsize,
                     'error':err })
             self.counter.inc()
             self.qin.task_done()
 
     def parse_pdf(self, pdf, err=''):
         return None, 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
+    def get_file_size(self, pdf):
+        try:
+            size = os.path.getsize(pdf)
+        except OSError:
+            '''
+            This should never actually happen if we were able to parse it
+            '''
+            size = 0
+        return str(size)
+    def get_pdf_size(self, pdf):
+        return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def make_graph(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def make_tree_string(self, pdf, err=''):
@@ -265,10 +279,16 @@ class PDFMinerHasher(Hasher):
         return de_js
 
     def get_swf(self, pdf, err):
-        swf = 'Where?'
-        if isinstance(pdf.swf, list):
-            swf = '\n'.join(swf)
+        swf = ''
+        if pdf.swf:
+            if isinstance(pdf.swf, list):
+                swf = '\n'.join(swf)
+            elif isinstance(pdf.swf, str):
+                swf = pdf.swf
         return swf
+
+    def get_pdf_size(self, pdf, err):
+        return str(pdf.bytes_read)
 
     def make_graph(self, pdf, err):
         graph = ''
@@ -453,8 +473,9 @@ class DbStorage(Storage):
         'abc',
         'actionscript',
         'shellcode',
-        'bin_blob',
         'fsize',
+        'pdfsize',
+        'bin_blob',
         'error')
     primary = 'pdf_md5'
     

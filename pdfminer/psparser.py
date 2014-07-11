@@ -5,7 +5,6 @@ from utils import choplist
 
 STRICT = 0
 
-
 ##  PS Exceptions
 ##
 class PSException(Exception):
@@ -158,7 +157,7 @@ class PSBaseParser(object):
     """Most basic PostScript parser that performs only tokenization.
     """
     BUFSIZ = 4096
-
+    BYTES = 0
     debug = 0
 
     def __init__(self, fp):
@@ -213,6 +212,7 @@ class PSBaseParser(object):
         self.buf = self.fp.read(self.BUFSIZ)
         if not self.buf:
             raise PSEOF('Unexpected EOF')
+        self.BYTES += len(self.buf)
         self.charpos = 0
         return
 

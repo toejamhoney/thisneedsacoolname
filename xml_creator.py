@@ -114,6 +114,7 @@ class FrankenParser(object):
         res += self.dumptrailers(doc)
         res += '</pdf>'
         self.xml=res
+        self.bytes_read = parser.BYTES
         #print js
         return
 
