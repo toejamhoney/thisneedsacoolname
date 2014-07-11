@@ -498,14 +498,20 @@ class FileStorage(Storage):
 
     def store(self, data_dict):
         try:
-            self.json.dump(data_dict, self.fd, separators=(',', ':'))
+            #self.json.dump(data_dict, self.fd, separators=(',', ':'))
+            header = '%s\n%s\n%s\n' % ('-'*80, data_dict.get('pdf_md5', 'N/A'), '-'*80)
+            footer = '\n'
+            data = '\n\n'.join(['__%s\n%s' % (k,v) for k,v in data_dict.items()])
+            self.fd.write('%s\n%s\n%s\n' % (header, data, footer))
         except IOError as e:
             print e
             print 'Unable to write to output file.'
             sys.exit(1)
-        except TypeError as e:
-            data_dict['error'].append('<FileStoreException>%s</FileStoreException>' % str(e))
-            self.json.dump(data_dict, self.fd, separators=(',', ':'), skipkeys=True)
+            '''
+            except TypeError as e:
+                data_dict['error'].append('<FileStoreException>%s</FileStoreException>' % str(e))
+                self.json.dump(data_dict, self.fd, separators=(',', ':'), skipkeys=True)
+            '''
         else:
             self.fd.write('\n')
 
