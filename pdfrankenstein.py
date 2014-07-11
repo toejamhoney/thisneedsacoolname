@@ -180,7 +180,7 @@ class Hasher(multiprocessing.Process):
                 try:
                     t_str = self.make_tree_string(parsed_pdf, err)
                     t_hash = self.make_tree_hash(t_str, err)
-                    graph = self.make_graph(t_str, err)
+                    graph = self.make_graph(parsed_pdf, err)
                     js = self.get_js(parsed_pdf, err)
                     de_js = self.get_deobf_js(js, parsed_pdf, err)
                     swf = self.get_swf(parsed_pdf, err)
@@ -206,7 +206,7 @@ class Hasher(multiprocessing.Process):
 
     def parse_pdf(self, pdf, err=''):
         return None, 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
-    def make_graph(self, t_str, err=''):
+    def make_graph(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def make_tree_string(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
@@ -247,7 +247,7 @@ class PDFMinerHasher(Hasher):
 
     def make_tree_string(self, pdf, err):
         if pdf.xml:
-            return self.xml
+            return pdf.xml
         else:
             return '<TreeException>EMPTY TREE</TreeException>'
 
@@ -273,15 +273,17 @@ class PDFMinerHasher(Hasher):
         return de_js
 
     def get_swf(self, pdf, err):
-        if isinstance(self.swf, list):
-            self.swf = '\n'.join(self.swf)
-        return self.swf
+        swf = 'Where?'
+        if isinstance(pdf.swf, list):
+            swf = '\n'.join(swf)
+        return swf
 
     def reset(self):
-        self.js_list = []
-        self.xml = ''
-        self.swf = ''
-'''
+        #self.js_list = []
+        #self.xml = ''
+        #self.swf = ''
+        pass
+    '''
     def get_tree_hash(self, pdf):
         m = hashlib.md5()
         if self.PDF.xml:
@@ -297,11 +299,16 @@ class PDFMinerHasher(Hasher):
         djs = analyse(js, self.PDF.tree)
         #djs = 'TODO'
         return js, djs
->>>>>>> 02447eb73a1b36d4731657cc2397b5a77eca5be5
-'''
+    '''
 
-    def make_graph(self, pdf):
-        return pdf.make_graph(pdf.tree)
+    def make_graph(self, pdf, err):
+        graph = ''
+        try:
+            graph = pdf.make_graph(pdf.tree)
+            graph = '\n'.join(graph)
+        except Exception as e:
+            err.append('<GetJSException>%s</GetJSException>' % traceback.format_exc())
+        return graph
 
     def comment_out(self, js):
         return re.sub("^(<)", "//", unescapeHTML(js), flags=re.M)
