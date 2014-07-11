@@ -51,7 +51,7 @@ class ArgParser(object):
         self.parser.add_argument('pdf_in', help="PDF input for analysis")
         self.parser.add_argument('-d', '--debug', action='store_true', default=False, help="Print debugging messages, TODO")
         self.parser.add_argument('-o', '--out', default='t-hash-'+time.strftime("%Y-%m-%d_%H-%M-%S")+'.txt', help="Analysis output filename or type. Default to timestamped file in CWD. Options: 'db'||'stdout'||[filename]")
-        self.parser.add_argument('--hasher', default='peepdf', help='Specify which type of hasher to use. PeePDF (default) | PDFMiner') 
+        self.parser.add_argument('--hasher', default='pdfminer', help='Specify which type of hasher to use. PeePDF | PDFMiner (default)') 
         self.parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Spam the terminal, TODO")
 
     def parse(self):
@@ -128,48 +128,102 @@ class Hasher(multiprocessing.Process):
         self.qout = qout
         self.counter = counter
 
+    '''
+    This loop is the main process of the hasher. It is automatically called
+    when you call multiprocessing.Process.start()
+
+    All variables should be local to the loop, and returned as strings
+    suitable for inserting into the database.
+    '''
     def run(self):
         while True:
-            jscript = ''
-            t_hash = ''
-            swflash = ''
-            graph = ''
-            deobf_js = ''
             pdf = self.qin.get()
-
             if not pdf:
+                '''
+                This terminates the process by receiving a poison sentinel, None.
+                '''
                 self.qin.task_done()
                 return 0
+
+            '''
+            Reset the values on each pdf.
+            '''
+            err = []
+            t_hash = ''
+            t_str = ''
+            graph = ''
+            js = ''
+            de_js = ''
+            swf = ''
             
-            pdf_name = pdf.rstrip(os.path.sep).rpartition(os.path.sep)[2]
-            fsize = os.path.getsize(pdf)
-            rv, parsed_pdf = self.parse_pdf(pdf)
+            '''
+            Arguments are validated when Jobber adds them to the queue based
+            on the Validators valid() return value. We can assume these will
+            succeed. However, this process must reach the task_done() call,
+            and so we try/catch everything
+            '''
+            try:
+                pdf_name = pdf.rstrip(os.path.sep).rpartition(os.path.sep)[2]
+                fsize = str(os.path.getsize(pdf))
+            except Exception as e:
+                err.append('UNEXPECTED OS ERROR:\n%s' % traceback.format_exc())
+                pdf_name = pdf
+                fsize = ''
 
-            if not rv:
-                t_str = parsed_pdf
-            else:
+            '''
+            The parse_pdf call will return a value that evaluates to false if it
+            did not succeed. Error messages will appended to the err list.
+            '''
+            parsed_pdf = self.parse_pdf(pdf, err)
+
+            if parsed_pdf:
                 try:
-                    t_hash, t_str = self.get_tree_hash(parsed_pdf)
-                    graph = self.make_graph(t_str)
-                    jscript, deobf_js = self.get_js(parsed_pdf)
-                    swflash = self.get_swf(parsed_pdf)
+                    t_str = self.make_tree_string(parsed_pdf, err)
+                    t_hash = self.make_tree_hash(t_str, err)
+                    graph = self.make_graph(t_str, err)
+                    js = self.get_js(parsed_pdf, err)
+                    de_js = self.get_deobf_js(parsed_pdf, err)
+                    swf = self.get_swf(parsed_pdf, err)
                 except Exception as e:
-                    print e
-                    t_hash = repr(e)
+                    err.append('UNCAUGHT PARSING EXCEPTION:\n%s' % traceback.format_exc())
 
-            self.qout.put({'fsize':fsize, 'pdf_md5':pdf_name, 'tree_md5':t_hash, 'tree':t_str, 'obf_js':jscript, 'deobf_js':deobf_js, 'swf':swflash, 'graph':graph})
+            '''
+            If the list is empty this will be an emptry string; no "Error: " text.
+            '''
+            err = 'Error: '.join(err)
+
+            self.qout.put({'fsize':fsize,
+                    'pdf_md5':pdf_name,
+                    'tree_md5':t_hash,
+                    'tree':t_str,
+                    'obf_js':js,
+                    'deobf_js':de_js,
+                    'swf':swf,
+                    'graph':graph,
+                    'error':err })
             self.counter.inc()
             self.qin.task_done()
 
-    def parse_pdf(self, pdf):
+    def parse_pdf(self, pdf, err=''):
         return None, 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
-    def make_graph(self, tstr):
+    def make_graph(self, t_str, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
-    def get_tree_hash(self, pdf):
+    def make_tree_string(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
-    def get_js(self, pdf):
-        return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name, 'Unimplemented'
-    def get_swf(self, pdf):
+    def make_tree_hash(self, t_str, err=''):
+        t_hash = ''
+        m = hashlib.md5()
+        try:
+            m.update(t_str)
+            t_hash = m.hexdigest()
+        except TypeError:
+            err.append('<HashException>%s</HashException>' % traceback.format_exc())
+        return t_hash
+    def get_js(self, pdf, err=''):
+        return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
+    def get_debof_js(self, pdf, err=''):
+        return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
+    def get_swf(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
 
 class PDFMinerHasher(Hasher):
@@ -178,33 +232,55 @@ class PDFMinerHasher(Hasher):
         super(PDFMinerHasher, self).__init__(**kwargs)
         self.js_list = [] 
         self.xml = ''
+        self.swf = ''
 
-    def parse_pdf(self, pdf):
-        status = True
-        retval = None
+    def parse_pdf(self, pdf, err):
+        self.reset()
+        retval = False
         try:
-            self.xml, self.js_list = xml_creator.create(pdf)
-        except Exception as e:
-            status = False
-            retval = '<pdf><ParseException pdf="%s"><%s</ParseException></pdf>' % (str(pdf), str(e))
-            write('PDFMinerHasher.parse_pdf():\n\t%s\n' % retval)
-        return status, retval
+            self.xml, self.js_list, self.swf = xml_creator.create(pdf)
+            retval = True
+        except Exception:
+            err.append('<ParseException><pdf="%s">"%s"</ParseException>' % (str(pdf), traceback.format_exc()))
+            write('\nPDFMinerHasher.parse_pdf():\n\t%s\n' % err[-1])
+        return retval
 
-    def get_tree_hash(self, pdf):
-        m = hashlib.md5()
+    def make_tree_string(self, pdf, err):
         if self.xml:
-            m.update(self.xml)
-            retval = m.hexdigest()
+            return self.xml
         else:
-            retval = '0'
-        return retval, self.xml
+            return '<TreeException>EMPTY TREE</TreeException>'
 
-    def get_js(self, pdf):
-        self.js_list = [ self.comment_out(js) for js in self.js_list ]
-        js = '\n\n'.join(self.js_list)
-        #djs = analyse(js, self.xml)
-        djs = 'TODO'
-        return js, djs
+    def get_js(self, pdf, err):
+        js = ''
+        try:
+            self.js_list = [ self.comment_out(js) for js in self.js_list ]
+            js = '\n\n'.join(self.js_list)
+        except Exception as e:
+            err.append('<GetJSException>%s</GetJSException>' % traceback.format_exc())
+        return js
+
+    def get_deobf_js(self, js, err):
+        de_js = ''
+        try:
+            '''
+            For now this may be unsafe
+            de_js = analyse(js, self.xml)
+            '''
+            de_js = 'TODO'
+        except Exception as e:
+            err.append('<DeobfuscateJSException>%s</DeobfuscateJSException>' % traceback.format_exc())
+        return de_js
+
+    def get_swf(self, pdf, err):
+        if isinstance(self.swf, list):
+            self.swf = '\n'.join(self.swf)
+        return self.swf
+
+    def reset(self):
+        self.js_list = []
+        self.xml = ''
+        self.swf = ''
 
     def comment_out(self, js):
         return re.sub("^(<)", "//", unescapeHTML(js), flags=re.M)
@@ -213,16 +289,16 @@ class PeePDFHasher(Hasher):
 
     from peepdf.PDFCore import PDFParser
 
-    def parse_pdf(self, pdf):
+    def parse_pdf(self, pdf, err):
         retval = True
 	try:
             _, pdffile = self.PDFParser().parse(pdf, forceMode=True, manualAnalysis=True)
         except Exception as e:
             retval = False
             pdffile = '\n'.join([traceback.format_exc(), repr(e)])
-        return retval, pdffile
+        return pdffile
 
-    def get_swf(self, pdf):
+    def get_swf(self, pdf, err):
         swf = ''
         for version in range(pdf.updates + 1):
             for idx, obj in pdf.body[version].objects.items():
@@ -232,24 +308,19 @@ class PeePDFHasher(Hasher):
                         swf += obj.object.decodedStream.strip()
         return swf
 
-    def get_js(self, pdf):
+    def get_js(self, pdf, err):
         js = ''
         for version in range(pdf.updates+1):
             for obj_id in pdf.body[version].getContainingJS():
                 js += self.do_js_code(obj_id, pdf)
-        return js, 'TODO'
+        return js
 
-    def get_tree_hash(self, pdf):
+    def make_tree_string(self, pdf, err):
         try:
-	    tree_string = self.do_tree(pdf)
+	        t_str = self.do_tree(pdf)
         except Exception as e:
-            tree_string = 'ERROR: ' + repr(e) 
-        m = hashlib.md5()
-        m.update(tree_string)
-	tree_hash = m.hexdigest()
-	if not tree_string:
-            tree_string = 'Empty tree. Hash on empty string.'
-        return tree_hash, tree_string
+            t_str = 'ERROR: ' + repr(e)
+        return t_str
 
     def do_js_code(self, obj_id, pdf):
         consoleOutput = ''
@@ -331,7 +402,7 @@ class Stasher(multiprocessing.Process):
         proceed = True
         while proceed:
             try:
-                t_hash = self.qin.get(timeout=30)
+                t_hash = self.qin.get(timeout=90)
             except Empty:
                 write('\nStasher: Empty job queue\n')
                 break
@@ -386,7 +457,8 @@ class DbStorage(Storage):
         'actionscript',
         'shellcode',
         'bin_blob',
-        'fsize')
+        'fsize',
+        'error')
     primary = 'pdf_md5'
     
     def __init__(self):
