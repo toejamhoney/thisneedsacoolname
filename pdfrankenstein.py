@@ -182,7 +182,7 @@ class Hasher(multiprocessing.Process):
                     t_hash = self.make_tree_hash(t_str, err)
                     graph = self.make_graph(t_str, err)
                     js = self.get_js(parsed_pdf, err)
-                    de_js = self.get_deobf_js(parsed_pdf, err)
+                    de_js = self.get_deobf_js(js, parsed_pdf, err)
                     swf = self.get_swf(parsed_pdf, err)
                 except Exception as e:
                     err.append('UNCAUGHT PARSING EXCEPTION:\n%s' % traceback.format_exc())
@@ -221,7 +221,7 @@ class Hasher(multiprocessing.Process):
         return t_hash
     def get_js(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
-    def get_debof_js(self, pdf, err=''):
+    def get_debof_js(self, js, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def get_swf(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
@@ -230,23 +230,23 @@ class PDFMinerHasher(Hasher):
 
     def __init__(self, **kwargs):
         super(PDFMinerHasher, self).__init__(**kwargs)
-        self.js_list = [] 
-        self.xml = ''
-        self.swf = ''
+        #self.js_list = [] 
+        #self.xml = ''
+        #self.swf = ''
 
     def parse_pdf(self, pdf, err):
-        self.reset()
-        retval = False
+        #self.reset()
+        parsed = False
         try:
-            self.xml, self.js_list, self.swf = xml_creator.create(pdf)
-            retval = True
+            #self.xml, self.js_list, self.swf = xml_creator.create(pdf)
+            parsed = xml_creator.FrankenParser(pdf)
         except Exception:
             err.append('<ParseException><pdf="%s">"%s"</ParseException>' % (str(pdf), traceback.format_exc()))
             write('\nPDFMinerHasher.parse_pdf():\n\t%s\n' % err[-1])
-        return retval
+        return parsed
 
     def make_tree_string(self, pdf, err):
-        if self.xml:
+        if pdf.xml:
             return self.xml
         else:
             return '<TreeException>EMPTY TREE</TreeException>'
@@ -254,18 +254,18 @@ class PDFMinerHasher(Hasher):
     def get_js(self, pdf, err):
         js = ''
         try:
-            self.js_list = [ self.comment_out(js) for js in self.js_list ]
-            js = '\n\n'.join(self.js_list)
+            js_list = [ self.comment_out(js) for js in pdf.javascript ]
+            js = '\n\n'.join(js_list)
         except Exception as e:
             err.append('<GetJSException>%s</GetJSException>' % traceback.format_exc())
         return js
 
-    def get_deobf_js(self, js, err):
+    def get_deobf_js(self, js, pdf, err):
         de_js = ''
         try:
             '''
             For now this may be unsafe
-            de_js = analyse(js, self.xml)
+            de_js = analyse(js, pdf.tree)
             '''
             de_js = 'TODO'
         except Exception as e:
@@ -281,6 +281,27 @@ class PDFMinerHasher(Hasher):
         self.js_list = []
         self.xml = ''
         self.swf = ''
+'''
+    def get_tree_hash(self, pdf):
+        m = hashlib.md5()
+        if self.PDF.xml:
+            m.update(self.PDF.xml)
+            retval = m.hexdigest()
+        else:
+            retval = '0'
+        return retval, self.PDF.xml
+
+    def get_js(self, pdf):
+        js_list = [ self.comment_out(js) for js in self.PDF.javascript ]
+        js = '\n\n'.join(js_list)
+        djs = analyse(js, self.PDF.tree)
+        #djs = 'TODO'
+        return js, djs
+>>>>>>> 02447eb73a1b36d4731657cc2397b5a77eca5be5
+'''
+
+    def make_graph(self, pdf):
+        return pdf.make_graph(pdf.tree)
 
     def comment_out(self, js):
         return re.sub("^(<)", "//", unescapeHTML(js), flags=re.M)
