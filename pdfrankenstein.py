@@ -176,21 +176,12 @@ class PDFMinerHasher(Hasher):
 
     def __init__(self, **kwargs):
         super(PDFMinerHasher, self).__init__(**kwargs)
-        self.js_list = [] 
-        self.swf_list = []
-        self.xml = ''
-        self.tree = None
-    
-
+        self.PDF = None
     def parse_pdf(self, pdf):
         status = True
         retval = None
         try:
-            PDF = xml_creator.FrankenParser(pdf)
-            self.xml = PDF.xml
-            self.js_list = PDF.javascript
-            self.swf_list = PDF.swf
-            self.tree = PDF.tree
+            self.PDF = xml_creator.FrankenParser(pdf)
         except Exception as e:
             status = False
             retval = '<pdf><ParseException pdf="%s"><%s</ParseException></pdf>' % (str(pdf), str(e))
@@ -199,19 +190,22 @@ class PDFMinerHasher(Hasher):
 
     def get_tree_hash(self, pdf):
         m = hashlib.md5()
-        if self.xml:
-            m.update(self.xml)
+        if self.PDF.xml:
+            m.update(self.PDF.xml)
             retval = m.hexdigest()
         else:
             retval = '0'
-        return retval, self.xml
+        return retval, self.PDF.xml
 
-    def get_js(self, PDF):
-        self.js_list = [ self.comment_out(js) for js in self.js_list ]
-        js = '\n\n'.join(self.js_list)
-        djs = analyse(js, self.tree)
+    def get_js(self, pdf):
+        js_list = [ self.comment_out(js) for js in self.PDF.javascript ]
+        js = '\n\n'.join(js_list)
+        djs = analyse(js, self.PDF.tree)
         #djs = 'TODO'
         return js, djs
+
+    def make_graph(self, pdf):
+        return self.PDF.make_graph(self.PDF.tree)
 
     def comment_out(self, js):
         return re.sub("^(<)", "//", unescapeHTML(js), flags=re.M)

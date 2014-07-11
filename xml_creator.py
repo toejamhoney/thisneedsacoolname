@@ -31,7 +31,7 @@ class FrankenParser(object):
             res += '<dict size="%' + str(len(obj)) + '">\n'
             for (k,v) in obj.iteritems():
                 res += '<' + k + '>'
-                res = self.dump(v)
+                res += self.dump(v)
                 res += '</' + k + '>\n'
             res += '</dict>'
             return res
@@ -39,7 +39,7 @@ class FrankenParser(object):
         if isinstance(obj, list):
             res += '<list size="' + str(len(obj)) + '">\n'
             for v in obj:
-                res = self.dump(v)
+                res += self.dump(v)
                 res += '\n'
             res += '</list>'
             return res
@@ -51,8 +51,7 @@ class FrankenParser(object):
 
         if isinstance(obj, PDFStream):
             res += '<stream>\n<props>\n'
-            tmp = self.dump(obj.attrs)
-            res += tmp
+            res += self.dump(obj.attrs)
             res += '\n</props>\n'
             data = obj.get_data()
             self.check_js(str(data))
@@ -133,10 +132,28 @@ class FrankenParser(object):
             tree = ET.fromstring(xml)
             return tree
         except Exception as e:
-            #print "Tree Error"
-            #print e.message
+            print "Tree Error"
+            print e.message
             if e.message.find("xmlParseCharRef") > -1:
                 char = re.findall("value\s(\d*?),", e.message)
                 xml = re.sub("&#" + char[0] + ";", "", xml)
                 return self.tree_from_xml(xml)
             else: return None
+
+    def make_graph(self, tree):
+        res = []
+        if tree is not None:
+            self.edges(tree, res, 0)
+            print res
+        return res
+        
+
+    def edges(self, parent, output, id):
+      for child in list(parent):
+        if child.get("id") != None:
+            cid = child.get("id")
+            output.append(str(id) + ' ' + cid +  '\n')
+            self.edges(child, output, cid)
+        else:
+            res = self.edges(child, output, id)
+      return
