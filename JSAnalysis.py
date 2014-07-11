@@ -22,12 +22,25 @@ except:
 
 reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
 
-def create_objs(context, xml):
+def tree_from_xml (xml):
     try:
         tree = ET.fromstring(xml)
+        return tree
+    except Exception as e:
+        print "Tree Error"
+        print e.message
+        if e.message.find("xmlParseCharRef") > -1:
+            char = re.findall("value\s(\d*?),", e.message)
+            xml = re.sub("&#" + char[0] + ";", "", xml)
+            return tree_from_xml(xml)
+        else: return None
+
+def create_objs(context, xml):
+    try:
+        tree = tree_from_xml(xml)
     except Exception as e:
         print "Tree: " + e.message
-        #pass
+        return
     if tree is not None:
         try: 
             app = build_pdf_objects.create_app_obj(tree)
@@ -64,7 +77,7 @@ def eval_loop (code, context, old_msg = ""):
         context.eval(code)
         return context.eval("evalCode")
     except ReferenceError as e:
-        #print e.message
+        print e.message
         obj = re.findall("Error:\s(.*?)\sis", e.message)
         #do something to fix  
         if e.message + "2" == old_msg:
@@ -81,7 +94,7 @@ def eval_loop (code, context, old_msg = ""):
                     break
             return eval_loop(code, context, e.message+"2")
         else:
-            if (obj[0] == '$'):
+            if (len(obj) > 0 and obj[0] == '$'):
                 context.eval("$ = this;")
             else: 
                 context.eval('eval=evalOverride2')
@@ -124,6 +137,7 @@ def eval_loop (code, context, old_msg = ""):
         return eval_loop(code, context, te.message)
     except SyntaxError as se:
         print se.message
+        print code
         if se.message == old_msg:
             return context.eval("evalCode")
         line_num = re.findall("@\s(\d*?)\s", se.message)
@@ -143,13 +157,13 @@ def analyse (js, xml):
     context = PyV8.JSContext(Global())
     context.enter()
     context.eval('eval=evalOverride')
+    #print context.eval('evalCode')
     if JS_MODULE:
         try:
             create_objs(context, xml)
-            evalCode = eval_loop(js, context)
-            print evalCode
-            return evalCode
-            #return ""
+            eval_loop(js, context)
+            #print context.eval('evalCode')
+            return context.eval('evalCode')
         except Exception as e:
             print 'Error with analyzing JS: ' + e.message
             return ''
