@@ -2,6 +2,11 @@ import argparse, os, sys, xml_creator, re
 from JSAnalysis import analyse as analyse
 from JSAnalysis import unescapeHTMLEntities as unescapeHTML
 
+#temp
+from os.path import basename
+
+reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
+
 if __name__ == '__main__':
     pdf = {
         'xml': '',
@@ -25,10 +30,19 @@ if __name__ == '__main__':
             if len(js) > 0:
                 for item in js:
                     item = unescapeHTML(item)
-                    item = re.sub("^(<)", "//", item, flags=re.M)
+                    scriptElements = re.findall(reJSscript, item, re.DOTALL | re.IGNORECASE)
+                    if scriptElements != []:
+                        item = ''
+                        for scriptElement in scriptElements:
+                            item += scriptElement + '\n\n'
+                    #item = re.sub("(\s*<.*?>)", "", item, flags=re.M)
+                    item = re.sub("^(\s*<)", "//", item, flags=re.M)
                     pdf['javascript'] += item + "\n\n"
                     pdf['deobfuscated'] += analyse(item, pdf['xml'])
-                    
+            #print pdf['deobfuscated']
+            f = open ('deob_js/' + basename(args.pdf), 'w')
+            f.write(pdf['deobfuscated'])
+            f.close()
         else:
             print 'Unable to find PDF file/directory:', args.pdf_in
             sys.exit(1)

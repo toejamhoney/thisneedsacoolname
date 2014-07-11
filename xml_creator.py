@@ -107,7 +107,7 @@ def create (fname):
                 res += tmp
                 res += '\n</object>\n\n'
             except Exception as e:
-                print 'not found: ' + e.message
+                print e.message
     fp.close()
     tmp, js = dumptrailers(doc, js)
     res += tmp + '</pdf>'
