@@ -464,9 +464,9 @@ class DbStorage(Storage):
     def open(self):
         self.db.create_table(self.table, cols=[ ' '.join([col, 'TEXT']) for col in self.cols], primary=self.primary)
 
-    def store(self, data_list):
-        data_list = self.align_kwargs(data_list)
-        self.db.insert(self.table, cols=self.cols, vals=data_list)
+    def store(self, data_dict):
+        data_dict = self.align_kwargs(data_dict)
+        self.db.insert(self.table, cols=self.cols, vals=data_dict)
     
     def close(self):
         self.db.disconnect()
@@ -479,6 +479,8 @@ class DbStorage(Storage):
 
 
 class FileStorage(Storage):
+
+    import json
 
     def __init__(self, path):
         self.path = path
@@ -494,13 +496,18 @@ class FileStorage(Storage):
     def open(self):
         self.fd = open(self.path, 'wb')
 
-    def store(self, data_list):
+    def store(self, data_dict):
         try:
-            self.fd.write('%s\n' % '\t'.join([k + ':' + v for k,v in data_list.items()]))
+            self.json.dump(data_dict, self.fd, separators=(',', ':'))
         except IOError as e:
             print e
             print 'Unable to write to output file.'
             sys.exit(1)
+        except TypeError as e:
+            data_dict['error'].append('<FileStoreException>%s</FileStoreException>' % str(e))
+            self.json.dump(data_dict, self.fd, separators=(',', ':'), skipkeys=True)
+        else:
+            self.fd.write('\n')
 
     def close(self):
         self.fd.close()
