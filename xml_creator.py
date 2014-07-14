@@ -116,14 +116,10 @@ class FrankenParser(object):
         res += self.dumptrailers(doc)
         res += '</pdf>'
         self.xml=res
-        self.check_errors(doc)
+        self.errors = doc.errors
         self.bytes_read = parser.BYTES
         #print js
         return
-
-    def check_errors(self, doc):
-        self.errors = '\n'.join(doc.errors)
-
 
     def check_js (self, content):
         if isJavascript(content):

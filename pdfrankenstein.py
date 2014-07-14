@@ -187,6 +187,7 @@ class Hasher(multiprocessing.Process):
                     js = self.get_js(parsed_pdf, err)
                     de_js = self.get_deobf_js(js, parsed_pdf, err)
                     swf = self.get_swf(parsed_pdf, err)
+                    self.get_errors(parsed_pdf, err)
                 except Exception as e:
                     err.append('UNCAUGHT PARSING EXCEPTION:\n%s' % traceback.format_exc())
 
@@ -294,7 +295,7 @@ class PDFMinerHasher(Hasher):
         return str(pdf.bytes_read)
 
     def get_errors(self, pdf, err):
-        return pdf.errors
+        err.extend(pdf.errors)
 
     def make_graph(self, pdf, err):
         graph = ''
