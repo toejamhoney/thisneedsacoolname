@@ -296,6 +296,7 @@ class PDFDocument(object):
         self.caching = caching
         self.xrefs = []
         self.info = []
+        self.errors = []
         self.catalog = None
         self.encryption = None
         self.decipher = None
@@ -310,8 +311,10 @@ class PDFDocument(object):
         try:
             pos = self.find_xref(parser)
             self.read_xref_from(parser, pos, self.xrefs)
-        except (PDFNoValidXRef, PSEOF):
+        except PDFNoValidXRef:
             fallback = True
+        except PSEOF:
+            self.errors.append("<PDFMiner><PDFDocument><__init__>Error reading xref table: Possible malformed table</__init__></PDFDocument></PDFMiner>")
         if fallback:
             parser.fallback = True
             xref = PDFXRefFallback()

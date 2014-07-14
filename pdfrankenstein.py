@@ -181,9 +181,9 @@ class Hasher(multiprocessing.Process):
                 try:
                     fsize = self.get_file_size(pdf)
                     pdfsize = self.get_pdf_size(parsed_pdf, err)
-                    t_str = self.make_tree_string(parsed_pdf, err)
-                    t_hash = self.make_tree_hash(t_str, err)
                     graph = self.make_graph(parsed_pdf, err)
+                    t_str = self.make_tree_string(parsed_pdf, err)
+                    t_hash = self.make_tree_hash(graph, err)
                     js = self.get_js(parsed_pdf, err)
                     de_js = self.get_deobf_js(js, parsed_pdf, err)
                     swf = self.get_swf(parsed_pdf, err)
@@ -240,6 +240,8 @@ class Hasher(multiprocessing.Process):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def get_swf(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
+    def get_errors(self, pdf, err=''):
+        return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
 
 class PDFMinerHasher(Hasher):
 
@@ -290,6 +292,9 @@ class PDFMinerHasher(Hasher):
 
     def get_pdf_size(self, pdf, err):
         return str(pdf.bytes_read)
+
+    def get_errors(self, pdf, err):
+        return pdf.errors
 
     def make_graph(self, pdf, err):
         graph = ''
