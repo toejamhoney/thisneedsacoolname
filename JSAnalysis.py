@@ -13,10 +13,10 @@ try:
                 self.evalCode += expression +'\n'
             return
 
-        def evalOverride2(self, expression):
+        """def evalOverride2(self, expression):
             if self.evalCode.find(expression) == -1:
                 self.evalCode += expression +'\n'
-            return PyV8.JSContext.current.eval(expression)
+            return PyV8.JSContext.current.eval(expression)"""
         
 except:
     JS_MODULE = False
@@ -98,7 +98,8 @@ def eval_loop (code, context, old_msg = ""):
             if (len(obj) > 0 and obj[0] == '$'):
                 context.eval("$ = this;")
             else: 
-                context.eval('eval=evalOverride2')
+                return context.eval("evalCode")
+                #context.eval('eval=evalOverride2')
         return eval_loop(code, context, e.message)
     except TypeError as te:
         #print te.message
@@ -132,9 +133,9 @@ def eval_loop (code, context, old_msg = ""):
             line = re.escape(line[0])
             code = re.sub(line, sub, code)
         else:
-            if te.message == old_msg:
-                return context.eval("evalCode")
-            context.eval('eval=evalOverride2')
+            #if te.message == old_msg:
+            return context.eval("evalCode")
+            #context.eval('eval=evalOverride2')
         return eval_loop(code, context, te.message)
     except SyntaxError as se:
         #print se.message

@@ -269,11 +269,7 @@ class PDFMinerHasher(Hasher):
     def get_deobf_js(self, js, pdf, err):
         de_js = ''
         try:
-            '''
-            For now this may be unsafe
             de_js = analyse(js, pdf.tree)
-            '''
-            de_js = 'TODO'
         except Exception as e:
             err.append('<DeobfuscateJSException>%s</DeobfuscateJSException>' % traceback.format_exc())
         return de_js
