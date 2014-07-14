@@ -160,7 +160,10 @@ class PSBaseParser(object):
     BYTES = 0
     debug = 0
 
-    def __init__(self, fp):
+    def __init__(self, fp, dbg=False):
+        if dbg:
+            print 'PSBaseParser() debugging enabled'
+            self.debug = 3
         self.fp = fp
         self.seek(0)
         return
@@ -491,8 +494,8 @@ class PSBaseParser(object):
 ##
 class PSStackParser(PSBaseParser):
 
-    def __init__(self, fp):
-        PSBaseParser.__init__(self, fp)
+    def __init__(self, fp, dbg=False):
+        PSBaseParser.__init__(self, fp, dbg)
         self.reset()
         return
 

@@ -39,8 +39,8 @@ class PDFParser(PSStackParser):
 
     """
 
-    def __init__(self, fp):
-        PSStackParser.__init__(self, fp)
+    def __init__(self, fp, dbg=False):
+        PSStackParser.__init__(self, fp, dbg)
         self.doc = None
         self.fallback = False
         return

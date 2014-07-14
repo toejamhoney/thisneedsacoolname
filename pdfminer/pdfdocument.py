@@ -288,7 +288,10 @@ class PDFDocument(object):
     debug = 0
     PASSWORD_PADDING = '(\xbfN^Nu\x8aAd\x00NV\xff\xfa\x01\x08..\x00\xb6\xd0h>\x80/\x0c\xa9\xfedSiz'
 
-    def __init__(self, parser, password='', caching=True, fallback=True):
+    def __init__(self, parser, password='', caching=True, fallback=True, dbg=False):
+        if dbg:
+            print 'PDFDocument() debugging enabled'
+            debug = 3
         "Set the document to use a given PDFParser object."
         self.caching = caching
         self.xrefs = []
