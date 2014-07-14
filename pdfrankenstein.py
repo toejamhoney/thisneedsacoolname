@@ -282,7 +282,7 @@ class PDFMinerHasher(Hasher):
         swf = ''
         if pdf.swf:
             if isinstance(pdf.swf, list):
-                swf = '\n'.join(swf)
+                swf = '\n'.join(pdf.swf)
             elif isinstance(pdf.swf, str):
                 swf = pdf.swf
         return swf
@@ -522,8 +522,9 @@ class FileStorage(Storage):
             #self.json.dump(data_dict, self.fd, separators=(',', ':'))
             header = '%s\n%s\n%s\n' % ('-'*80, data_dict.get('pdf_md5', 'N/A'), '-'*80)
             footer = '\n'
-            data = '\n\n'.join(['__%s\n%s' % (k,v) for k,v in data_dict.items()])
-            self.fd.write('%s\n%s\n%s\n' % (header, data, footer))
+            print data_dict
+            #data = '\n\n'.join(['__%s\n%s' % (k,v) for k,v in data_dict.items()])
+            #self.fd.write('%s\n%s\n%s\n' % (header, data, footer))
         except IOError as e:
             print e
             print 'Unable to write to output file.'

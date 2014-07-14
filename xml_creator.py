@@ -145,7 +145,7 @@ class FrankenParser(object):
         res = []
         if tree is not None:
             self.edges(tree, res, 0)
-            print res
+            #print res
         return res
         
 
