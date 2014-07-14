@@ -27,7 +27,7 @@ def get_annots(app, root):
                       for ob in root.iterfind(".//object"):
                           if ob.get("id") == childs[2*i+1][0].get("id"):
                               for child in ob.iterdescendants(tag="data"):
-                                 new[childs[2*i].text] = unescapeHTMLEntities(child.text)
+                                 new[childs[2*i].text] = unescapeHTMLEntities(child.text.decode('base64'))
                   else:
                        new[childs[2*i].text] = "Unknown tag: " + childs[2*i+1][0].tag
               new["subject"] = new.pop("Subj")
@@ -43,13 +43,13 @@ def create_event_obj(tree):
             parent = elem.getparent()
             sibling = parent[parent.index(elem)+1][0]
             if sibling.tag == "string" and sibling.text != None:
-                event["target"][item] = unescapeHTMLEntities(sibling.text)
+                event["target"][item] = unescapeHTMLEntities(sibling.text.decode('base64'))
             elif sibling.tag == "ref":
                 for ob in tree.iterfind(".//object"):
                     if ob.get("id") == sibling.get("id"):
                         for child in ob.iterdescendants(tag="data"):
                             if child.text != None:
-                                event["target"][item] = unescapeHTMLEntities(child.text)
+                                event["target"][item] = unescapeHTMLEntities(child.text.decode('base64'))
             else:
                 event["target"][item] = "Unknown tag: " + sibling.tag
     #print event
@@ -87,12 +87,12 @@ def create_info_obj(tree):
             parent = elem.getparent()
             sibling = parent[parent.index(elem)+1][0]
             if sibling.tag == "string" and sibling.text != None:
-                this["info"][item] = unescapeHTMLEntities(sibling.text)
+                this["info"][item] = unescapeHTMLEntities(sibling.text.decode('base64'))
             elif sibling.tag == "ref":
                 for ob in tree.iterfind(".//object"):
                     if ob.get("id") == sibling.get("id"):
                         for child in ob.iterdescendants(tag="data"):
-                            this["info"][item] = unescapeHTMLEntities(child.text)
+                            this["info"][item] = unescapeHTMLEntities(child.text.decode('base64'))
             else:
                 this["info"][item] = "Unknown tag: " + sibling.tag
     #print this
