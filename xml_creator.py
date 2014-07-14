@@ -8,7 +8,9 @@ from JSAnalysis import isJavascript
 from SWFAnalysis import isFlash
 
 class FrankenParser(object):
-    def __init__(self, pdf):
+    def __init__(self, pdf, debug=False):
+        self.errors = ''
+        self.debug = debug
         self.pdf = pdf
         self.xml = ''
         self.javascript = []
@@ -92,8 +94,8 @@ class FrankenParser(object):
 
     def parse (self):
         fp = file(self.pdf, 'rb')
-        parser = PDFParser(fp)
-        doc = PDFDocument(parser)
+        parser = PDFParser(fp, dbg=self.debug)
+        doc = PDFDocument(parser, dbg=self.debug)
         res = '<pdf>'
         visited = set()
         #js = []
@@ -114,9 +116,14 @@ class FrankenParser(object):
         res += self.dumptrailers(doc)
         res += '</pdf>'
         self.xml=res
+        self.check_errors(doc)
         self.bytes_read = parser.BYTES
         #print js
         return
+
+    def check_errors(self, doc):
+        self.errors = '\n'.join(doc.errors)
+
 
     def check_js (self, content):
         if isJavascript(content):

@@ -122,11 +122,12 @@ class Hasher(multiprocessing.Process):
     '''
     Hashers generally make hashes of things
     '''
-    def __init__(self, qin, qout, counter):
+    def __init__(self, qin, qout, counter, debug):
         multiprocessing.Process.__init__(self)
         self.qin = qin
         self.qout = qout
         self.counter = counter
+        self.debug = debug
 
     '''
     This loop is the main process of the hasher. It is automatically called
@@ -180,9 +181,9 @@ class Hasher(multiprocessing.Process):
                 try:
                     fsize = self.get_file_size(pdf)
                     pdfsize = self.get_pdf_size(parsed_pdf, err)
-                    t_str = self.make_tree_string(parsed_pdf, err)
-                    t_hash = self.make_tree_hash(t_str, err)
                     graph = self.make_graph(parsed_pdf, err)
+                    t_str = self.make_tree_string(parsed_pdf, err)
+                    t_hash = self.make_tree_hash(graph, err)
                     js = self.get_js(parsed_pdf, err)
                     de_js = self.get_deobf_js(js, parsed_pdf, err)
                     swf = self.get_swf(parsed_pdf, err)
@@ -239,13 +240,15 @@ class Hasher(multiprocessing.Process):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def get_swf(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
+    def get_errors(self, pdf, err=''):
+        return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
 
 class PDFMinerHasher(Hasher):
 
     def parse_pdf(self, pdf, err):
         parsed = False
         try:
-            parsed = xml_creator.FrankenParser(pdf)
+            parsed = xml_creator.FrankenParser(pdf, self.debug)
         except Exception:
             err.append('<ParseException><pdf="%s">"%s"</ParseException>' % (str(pdf), traceback.format_exc()))
             write('\nPDFMinerHasher.parse_pdf():\n\t%s\n' % err[-1])
@@ -285,6 +288,9 @@ class PDFMinerHasher(Hasher):
 
     def get_pdf_size(self, pdf, err):
         return str(pdf.bytes_read)
+
+    def get_errors(self, pdf, err):
+        return pdf.errors
 
     def make_graph(self, pdf, err):
         graph = ''
@@ -657,10 +663,9 @@ def write(msg):
 if __name__ == '__main__':
     pdfs = []
     args = ParserFactory().new_parser().parse()
-    #num_procs = multiprocessing.cpu_count()/2 - 1
+    #num_procs = multiprocessing.cpu_count()/2 - 3
     num_procs = multiprocessing.cpu_count() - 3 
     num_procs = num_procs if num_procs > 0 else 1
-    mgr = multiprocessing.Manager()
 
     if os.path.isdir(args.pdf_in):
         dir_name = os.path.join(args.pdf_in, '*')
@@ -686,7 +691,7 @@ if __name__ == '__main__':
     counters = [job_counter, result_counter]
 
     hf = HasherFactory()
-    hashers = [ hf.get_hasher(hasher=args.hasher, qin=jobs, qout=results, counter=job_counter) for cnt in range(num_procs) ]
+    hashers = [ hf.get_hasher(hasher=args.hasher, qin=jobs, qout=results, counter=job_counter, debug=args.debug) for cnt in range(num_procs) ]
     stasher = Stasher(qin=results, storage=args.out, counter=result_counter)
     jobber = Jobber(pdfs, jobs, job_validator, counters, num_procs)
     progress = ProgressBar(counters, LOCK, msgs)
