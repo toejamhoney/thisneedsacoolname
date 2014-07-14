@@ -212,7 +212,9 @@ class PDFXRefStream(PDFBaseXRef):
 
     def load(self, parser, debug=0):
         (_, objid) = parser.nexttoken()  # ignored
+        print 'OBJID:',objid
         (_, genno) = parser.nexttoken()  # ignored
+        print 'GENNO:', genno
         (_, kwd) = parser.nexttoken()
         (_, stream) = parser.nextobject()
         if not isinstance(stream, PDFStream) or stream['Type'] is not LITERAL_XREF:
@@ -307,7 +309,7 @@ class PDFDocument(object):
         try:
             pos = self.find_xref(parser)
             self.read_xref_from(parser, pos, self.xrefs)
-        except PDFNoValidXRef:
+        except (PDFNoValidXRef, PSEOF):
             fallback = True
         if fallback:
             parser.fallback = True
