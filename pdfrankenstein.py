@@ -13,7 +13,7 @@ from Queue import Full, Empty
 
 import xml_creator
 from JSAnalysis import analyse as analyse
-from JSAnalysis import unescapeHTMLEntities as unescapeHTML
+from util import unescapeHTMLEntities as unescapeHTML
 
 LOCK = multiprocessing.Lock()
 

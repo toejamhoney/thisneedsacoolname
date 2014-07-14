@@ -46,7 +46,7 @@ class FrankenParser(object):
 
         if isinstance(obj, str):
             self.check_js(obj)
-            res += self.e(obj)
+            res += self.e(obj).encode('base64')
             return res
 
         if isinstance(obj, PDFStream):
@@ -56,7 +56,7 @@ class FrankenParser(object):
             data = obj.get_data()
             self.check_js(str(data))
             self.check_swf(str(data))
-            res += '<data size="' + str(len(data)) + '">' + self.e(data) + '</data>\n'
+            res += '<data size="' + str(len(data)) + '">' + self.e(data).encode('base64') + '</data>\n'
             res += '</stream>'
             return res
 
@@ -135,11 +135,7 @@ class FrankenParser(object):
         except Exception as e:
             print "Tree Error"
             print e.message
-            if e.message.find("xmlParseCharRef") > -1:
-                char = re.findall("value\s(\d*?),", e.message)
-                xml = re.sub("&#" + char[0] + ";", "", xml)
-                return self.tree_from_xml(xml)
-            else: return None
+            return None
 
     def make_graph(self, tree):
         res = []
