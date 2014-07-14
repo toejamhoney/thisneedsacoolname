@@ -46,7 +46,7 @@ class FrankenParser(object):
 
         if isinstance(obj, str):
             self.check_js(obj)
-            res += self.e(obj).encode('base64')
+            res += '<string>' + self.e(obj).encode('base64') + '</string>'
             return res
 
         if isinstance(obj, PDFStream):
@@ -120,7 +120,12 @@ class FrankenParser(object):
 
     def check_js (self, content):
         if isJavascript(content):
-            self.javascript.append(content)
+            reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
+            res = re.findall(reJSscript, content, re.DOTALL | re.IGNORECASE)
+            if res != []:
+                self.javascript.append('\n'.join(res))
+            else:
+                self.javascript.append(content)
         return
 
     def check_swf(self, content):
