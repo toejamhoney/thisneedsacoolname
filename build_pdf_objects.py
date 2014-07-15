@@ -3,7 +3,7 @@ from util import unescapeHTMLEntities
 
 #Determine the type of tag used and return its value accordingly
 def get_value (elem, root):
-    if elem.tag == "literal" or elem.tag == "number":
+    if elem.tag == "literal" or elem.tag == "number" or elem.tag == "keyword":
         return unescapeHTMLEntities(elem.text)
     elif elem.tag == "string":
         return unescapeHTMLEntities(elem.text.decode('base64'))
@@ -23,6 +23,16 @@ def get_value (elem, root):
             val = get_value(dict_elems[i][0], root)
             if val is not None:
                 ret[dict_elems[i].tag] = val
+    elif elem.tag == "list":
+        #build the list
+        ret = []
+        size = elem.get("size")
+        size = re.sub("%", "", size)
+        list_elems = elem.getchildren()
+        for i in range(int(size)):
+            val = get_value(list_elems[i][0], root)
+            if val is not None:
+                ret.append = val
     else:
         #some tags not accounted for: Rect, field, xfa, Media, etc
         ret = None
@@ -101,6 +111,9 @@ def create_info_obj(tree):
             val = get_value(elem[0], tree)
             if val is not None:
                 info[item] = val
+    #TODO remove this
+    this = {}
+    this['info'] = info
     #print info
     return info
 
