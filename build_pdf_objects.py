@@ -30,9 +30,9 @@ def get_value (elem, root):
         size = re.sub("%", "", size)
         list_elems = elem.getchildren()
         for i in range(int(size)):
-            val = get_value(list_elems[i][0], root)
+            val = get_value(list_elems[i], root)
             if val is not None:
-                ret.append = val
+                ret.append(val)
     else:
         #some tags not accounted for: Rect, field, xfa, Media, etc
         ret = None
@@ -90,7 +90,7 @@ def create_app_obj(tree):
     app['doc']['viewerType'] = 'Reader'
     app['viewerType'] = 'Reader'
     app['viewerVersion'] = 5.0
-    app['plugIns'] = [{ 'version': 6.0}, {'version': 7.5}, {'version': 8.7},{'version': 9.1}]
+    app['plugIns'] = [{ 'version': 6.0}, {'version': 7.5}, {'version': 8.7},{'version': 9.1},{'version': 10}]
     if not 'language' in app.keys():
         app['language'] = "ENU"
     if not 'platform' in app.keys():
@@ -111,9 +111,6 @@ def create_info_obj(tree):
             val = get_value(elem[0], tree)
             if val is not None:
                 info[item] = val
-    #TODO remove this
-    this = {}
-    this['info'] = info
     #print info
     return info
 
