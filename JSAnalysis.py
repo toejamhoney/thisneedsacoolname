@@ -23,26 +23,8 @@ except:
 
 reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
 
-"""def tree_from_xml (xml):
-    try:
-        tree = ET.fromstring(xml)
-        return tree
-    except Exception as e:
-        #print "Tree Error"
-        #print e.message
-        if e.message.find("xmlParseCharRef") > -1:
-            char = re.findall("value\s(\d*?),", e.message)
-            xml = re.sub("&#" + char[0] + ";", "", xml)
-            return tree_from_xml(xml)
-        else: return None"""
-
+#Mimic native Adove objects and add them to the context
 def create_objs(context, tree):
-    """try:
-        tree = tree_from_xml(xml)
-    except Exception as e:
-        #print "Tree: " + e.message
-        return
-    if tree is not None:"""
     try: 
         app = build_pdf_objects.create_app_obj(tree)
         context.eval("app = " + str(app) + ";")
@@ -56,34 +38,38 @@ def create_objs(context, tree):
         #print "App: " + e.message
         pass
     try:
-        event = build_pdf_objects.create_event_obj(tree)
-        context.eval("event = " + str(event) + ";")
-        #print event
-    except Exception as e:
-        #print "Event: " + e.message
-        pass
-    try:
         info = build_pdf_objects.create_info_obj(tree)
-        context.eval("this.info = " + str(info['info']) + ";")
-        context.eval("event.target.info = this.info")
+        context.eval("this.info = " + str(info) + ";")
         context.eval("this.eval = eval")
         #print info
     except Exception as e:
         #print "Info: " + e.message
         pass
+    try:
+        event = build_pdf_objects.create_event_obj(tree)
+        context.eval("event = " + str(event) + ";")
+        context.eval("event.target.info = this.info")
+        #print event
+    except Exception as e:
+        #print "Event: " + e.message
+        pass
+
 
 def eval_loop (code, context, old_msg = ""):
-    #print "eval_loop"
     try:
         context.eval(code)
         return context.eval("evalCode")
     except ReferenceError as e:
         #print e.message
-        obj = re.findall("Error:\s(.*?)\sis", e.message)
+
         #do something to fix  
-        if e.message + "2" == old_msg:
+        if e.message == old_msg:
+            #return e.message
             return context.eval("evalCode")
-        elif e.message == old_msg:
+        elif e.message.find('$') > -1:
+            context.eval("$ = this;")
+        else:
+            #try commenting out line
             line_num = re.findall("@\s(\d*?)\s", e.message)
             line_num = int(line_num[0])
             i = 0
@@ -93,65 +79,69 @@ def eval_loop (code, context, old_msg = ""):
                 if i == line_num:
                     code = re.sub(item, "//" + item, code)
                     break
-            return eval_loop(code, context, e.message+"2")
-        else:
-            if (len(obj) > 0 and obj[0] == '$'):
-                context.eval("$ = this;")
-            else: 
-                return context.eval("evalCode")
-                #context.eval('eval=evalOverride2')
         return eval_loop(code, context, e.message)
     except TypeError as te:
         #print te.message
-        if te.message.find("called on null or undefined") > -1:
+        if te.message == old_msg:
+            #return te.message
+            return context.eval("evalCode")
+        elif te.message.find("called on null or undefined") > -1:
+            #in Adobe undefined objects become app object
             line = re.findall("->\s(.*)", te.message)
-            if te.message == old_msg:
+            sub, count = re.subn("=\s?.\(.*?\)", "=app", line[0])
+            if count < 1:
                sub = re.sub("=.*", "=app", line[0])
-            else:
-                sub = re.sub("=\s?.\(.*?\)", "=app", line[0])
             line = re.escape(line[0])
             code = re.sub(line, sub, code)
         elif te.message.find("undefined is not a function") > -1:
+            #sub in eval as a guess
             line = re.findall("->\s(.*)", te.message)
-            if te.message == old_msg:
-                return context.eval("evalCode")
-            else:
-                match = re.findall("[\s=]?(.*?)\(", line[0])
+            match = re.findall("[\s=]?(.*?)\(", line[0])
+            if len(match) > 0:
                 sub = re.sub(match[0], "eval", line[0])
-            line = re.escape(line[0])
-            code = re.sub(line, sub, code)
-        elif te.message.find("Cannot read property") > -1:
-            line = re.findall("->\s(.*)", te.message)
-            if te.message == old_msg:
-                return context.eval("evalCode")
+                line = re.escape(line[0])
+                code = re.sub(line, sub, code)
             else:
-                match = re.findall("[=\s](.*?)\[", line[0])
-                if len(match) > 0:
-                    sub = re.sub(match[0], "app", line[0])
-                else:
-                    return context.eval("evalCode")
-            line = re.escape(line[0])
-            code = re.sub(line, sub, code)
+                #return te.message
+                return context.eval("evalCode")
+        elif te.message.find("Cannot read property") > -1:
+            #undefined becomes app
+            line = re.findall("->\s(.*)", te.message)
+            match = re.findall("[=\s](.*?)\[", line[0])
+            if len(match) > 0:
+                sub = re.sub(match[0], "app", line[0])
+                line = re.escape(line[0])
+                code = re.sub(line, sub, code)
+            else:
+                #return te.message
+                return context.eval("evalCode")
         else:
-            #if te.message == old_msg:
+            #return te.message
             return context.eval("evalCode")
-            #context.eval('eval=evalOverride2')
         return eval_loop(code, context, te.message)
     except SyntaxError as se:
         #print se.message
         if se.message == old_msg:
+            #return se.message
             return context.eval("evalCode")
         line_num = re.findall("@\s(\d*?)\s", se.message)
-        line_num = int(line_num[0])
-        i = 0
-        for item in code.split("\n"):
-            i += 1
-            if i == line_num:
-                code = re.sub(item, "//" + item, code)
-                break
+        if len(line_num) > 0:
+            line_num = int(line_num[0])
+            i = 0
+            #try commenting out the line number with the error
+            for item in code.split("\n"):
+                i += 1
+                if i == line_num:
+                    esc_item = re.escape(item)
+                    code, n = re.subn(esc_item, "//" + item, code)
+                    break
+        else:
+            #return se.message
+            return context.eval('evalCode')
         eval_loop(code, context, se.message)
     except Exception as e1:
         #print e1.message
+        #return e1.message
         return context.eval("evalCode")
 
 def analyse (js, tree):
@@ -163,12 +153,14 @@ def analyse (js, tree):
         try:
             if tree is not None:
                 create_objs(context, tree)
-            eval_loop(js, context)
-            #print context.eval('evalCode')
-            return context.eval('evalCode')
+            ret = eval_loop(js, context)    
+            if ret == None:
+                return ''
+            else:
+                return ret
         except Exception as e:
-            print 'Error with analyzing JS: ' + e.message
-            return ''
+            return 'Error with analyzing JS: ' + e.message
+            #return ''
     else:
         print 'Error with PyV8 context'
         return ''
