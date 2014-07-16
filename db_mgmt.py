@@ -121,10 +121,20 @@ if __name__ == "__main__":
     import threading
     num_threads = 10
     gw = DBGateway(sys.argv[1])
-    print gw.count('parsed_pdfs')
-    errors = gw.select("pdf_md5, tree FROM parsed_pdfs WHERE tree_md5='' or tree_md5 is null")
-    for err in errors:
-        print err
+    rowN = sys.argv[2]
+    print 'Row Count: %d' % gw.count('parsed_pdfs')
+
+    cur = gw.select("pdf_md5, tree FROM parsed_pdfs WHERE tree_md5='' or tree_md5 is null")
+
+    cur = gw.select("* FROM parsed_pdfs WHERE rowid=%s" % rowN)
+    row = cur.fetchone()
+    swf = row['swf']
+    md5 = row['pdf_md5']
+
+    usr = intern(raw_input('Output to file y/n?').lower())
+    if usr is 'y':
+        with open(md5 + '.swf', 'wb') as fout:
+            fout.write(swf)
     '''
     table = 'test_table'
 
