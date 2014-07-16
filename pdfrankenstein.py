@@ -170,7 +170,7 @@ class Hasher(multiprocessing.Process):
             except Exception as e:
                 err.append('UNEXPECTED OS ERROR:\n%s' % traceback.format_exc())
                 pdf_name = pdf
-
+            write(' Hashing: %s\n' % pdf_name)
             '''
             The parse_pdf call will return a value that evaluates to false if it
             did not succeed. Error messages will appended to the err list.
@@ -274,6 +274,7 @@ class PDFMinerHasher(Hasher):
         de_js = ''
         try:
             de_js = analyse(js, pdf.tree)
+            #de_js = 'TODO'
         except Exception as e:
             err.append('<DeobfuscateJSException>%s</DeobfuscateJSException>' % traceback.format_exc())
         return de_js
@@ -422,15 +423,16 @@ class Stasher(multiprocessing.Process):
         proceed = True
         while proceed:
             try:
-                t_hash = self.qin.get(timeout=90)
+                t_data = self.qin.get(timeout=90)
+                write('Stashing: %s\n' % t_data.get('pdf_md5'))
             except Empty:
-                write('\nStasher: Empty job queue\n')
+                write('\nStasher: Empty job queue. Abnormal exit. Hasher(s) may be stalled.\n')
                 break
-            if not t_hash:
+            if not t_data:
                 write('\nStasher: Kill message received\n')
                 proceed = False
             else:
-                self.storage.store(t_hash)
+                self.storage.store(t_data)
                 self.counter.inc()
             self.qin.task_done()
         self.storage.close()
@@ -590,7 +592,7 @@ class Jobber(multiprocessing.Process):
             self.qu.put(None)
         for counter in self.counters:
             counter.hard_max.value = job_cnt
-        write("Job queues complete. Counters set.\n")
+        write("Job queues complete: %d processes. Counters set: %d.\n" % (self.num_procs, job_cnt))
 
 
 class ProgressBar(multiprocessing.Process):
@@ -667,6 +669,7 @@ if __name__ == '__main__':
     #num_procs = multiprocessing.cpu_count()/2 - 3
     num_procs = multiprocessing.cpu_count() - 3 
     num_procs = num_procs if num_procs > 0 else 1
+    num_procs = 1
 
     if os.path.isdir(args.pdf_in):
         dir_name = os.path.join(args.pdf_in, '*')
