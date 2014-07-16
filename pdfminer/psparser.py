@@ -246,7 +246,8 @@ class PSBaseParser(object):
                 linebuf += self.buf[self.charpos:]
                 self.charpos = len(self.buf)
         if 2 <= self.debug:
-            print >>sys.stderr, 'nextline: %r' % ((linepos, linebuf),)
+            #print >>sys.stderr, 'nextline: %r' % ((linepos, linebuf),)
+            print >>sys.stderr, 'nextline: %r' % ((linepos, linebuf[:8]),)
         return (linepos, linebuf)
 
     def revreadlines(self):
@@ -486,7 +487,8 @@ class PSBaseParser(object):
             self.charpos = self._parse1(self.buf, self.charpos)
         token = self._tokens.pop(0)
         if 2 <= self.debug:
-            print >>sys.stderr, 'nexttoken: %r' % (token,)
+            #print >>sys.stderr, 'nexttoken: %r' % ([(a,a[:8]) for a in token])
+            print >>sys.stderr, 'nexttoken: (%s, %10s)' % token
         return token
 
 
@@ -600,7 +602,9 @@ class PSStackParser(PSBaseParser):
             else:
                 if 2 <= self.debug:
                     print >>sys.stderr, 'do_keyword: pos=%r, token=%r, stack=%r' % \
-                          (pos, token, self.curstack)
+                          (pos, token, 'STACK')
+                    #print >>sys.stderr, 'do_keyword: pos=%r, token=%r, stack=%r' % \
+                    #      (pos, token, self.curstack)
                 self.do_keyword(pos, token)
             if self.context:
                 continue
