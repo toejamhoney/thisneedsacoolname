@@ -1,0 +1,6 @@
+# List of files in 500 sample set with flash, found by grep
+16ed18ccb71ccc25d1cf83d58ec129b8
+2734a19381a53a82d6b57eafbbfeb154
+273986171eb498d04d6a139dba2c8040
+d134ed6644c5e27b73569e1610ad9502
+d13ac1fc0ca01a36757de10e10a31b82
