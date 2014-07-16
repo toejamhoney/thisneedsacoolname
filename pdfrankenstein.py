@@ -412,31 +412,35 @@ class Stasher(multiprocessing.Process):
     Stashers are the ant from the ant and the grashopper fable. They save
     things up for winter in persistent storage.
     '''
-    def __init__(self, qin, storage, counter):
+    def __init__(self, qin, storage, counter, qmsg):
         multiprocessing.Process.__init__(self)
         self.qin = qin
         self.storage = StorageFactory().new_storage(storage)
         self.counter = counter
+        self.qmsg = qmsg
 
     def run(self):
         self.storage.open()
+        write("%s" % self.qmsg.get())
         proceed = True
         while proceed:
             try:
                 t_data = self.qin.get(timeout=90)
-                write('Stashing: %s\n' % t_data.get('pdf_md5'))
             except Empty:
-                write('\nStasher: Empty job queue. Abnormal exit. Hasher(s) may be stalled.\n')
-                break
-            if not t_data:
-                write('\nStasher: Kill message received\n')
-                proceed = False
+                write('Stasher: Empty job queue.\n')
+                self.qmsg.task_done()
             else:
-                self.storage.store(t_data)
-                self.counter.inc()
-            self.qin.task_done()
+                if not t_data:
+                    write('\nStasher: End of results msg received\n')
+                    proceed = False
+                else:
+                    write('Stashing: %s\n' % t_data.get('pdf_md5'))
+                    self.storage.store(t_data)
+                    self.counter.inc()
+                self.qin.task_done()
         self.storage.close()
-        write('\nStasher: Storage closed. Exiting.\n')
+        self.qmsg.task_done()
+        write('Stasher: Storage closed. Exiting.\n')
 
 
 class StorageFactory(object):
@@ -626,7 +630,7 @@ class ProgressBar(multiprocessing.Process):
             time.sleep(.1)
             for counter in self.counters:
                 self.progress(counter)
-            self.check_msgs()
+            #self.check_msgs()
             write('\r')
         write('\n')
 
@@ -669,7 +673,6 @@ if __name__ == '__main__':
     #num_procs = multiprocessing.cpu_count()/2 - 3
     num_procs = multiprocessing.cpu_count() - 3 
     num_procs = num_procs if num_procs > 0 else 1
-    num_procs = 1
 
     if os.path.isdir(args.pdf_in):
         dir_name = os.path.join(args.pdf_in, '*')
@@ -696,19 +699,29 @@ if __name__ == '__main__':
 
     hf = HasherFactory()
     hashers = [ hf.get_hasher(hasher=args.hasher, qin=jobs, qout=results, counter=job_counter, debug=args.debug) for cnt in range(num_procs) ]
-    stasher = Stasher(qin=results, storage=args.out, counter=result_counter)
+    stasher = Stasher(qin=results, storage=args.out, counter=result_counter, qmsg=msgs)
     jobber = Jobber(pdfs, jobs, job_validator, counters, num_procs)
     progress = ProgressBar(counters, LOCK, msgs)
 
-    write("Starting processes...\n")
+    write("Starting hashing job processes...\n")
     jobber.start()
+    msgs.put("Starting stashing job process...\n")
     stasher.start()
     for hasher in hashers:
         hasher.start()
     progress.start()
 
-    jobs.join()
-    results.join()
-
+    #jobs.join()
+    #results.join()
+    msgs.join()
     time.sleep(1)
     results.put(None)
+
+    write("Collecting hashing processes...\n")
+    while len(hashers) > 0:
+        for h in hashers:
+            if h.is_alive():
+                h.terminate()
+            else:
+                hashers.remove(h)
+    write("PDFrankenstein Exiting\n")
