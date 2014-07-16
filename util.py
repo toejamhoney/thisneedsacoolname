@@ -28,4 +28,4 @@ def unescapeHTMLEntities(text):
             except KeyError:
                 pass
         return text # leave as is
-    return re.sub('&#?\w+;', fixup, text)
+    return str(re.sub('&#?\w+;', fixup, text))
