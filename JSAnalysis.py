@@ -1,6 +1,6 @@
 import build_pdf_objects, re, lxml.etree as ET
 from util import unescapeHTMLEntities
-try:
+'''try:
     import PyV8
     
     JS_MODULE = True
@@ -19,40 +19,44 @@ try:
             return PyV8.JSContext.current.eval(expression)"""
         
 except:
-    JS_MODULE = False
+    JS_MODULE = False'''
+from subprocess import check_output
 
 reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
 
 #Mimic native Adove objects and add them to the context
-def create_objs(context, tree):
+def create_objs(tree):
+    obj_string = ''
     try: 
         app = build_pdf_objects.create_app_obj(tree)
-        context.eval("app = " + str(app) + ";")
-        context.eval("app.doc.syncAnnotScan = function () {}")
-        context.eval("app.doc.getAnnots = function () { return app.doc.annots;}")
-        context.eval("app.eval = function (string) { eval(string);}")
-        context.eval("app.newDoc = function () { return '';}")
-        context.eval("app.getString = function () { ret = \"\"; for(var prop in app){ ret += app[prop]; } return ret;}")
+        obj_string += "app = " + str(app) + ";"
+        obj_string +="app.doc.syncAnnotScan = function () {};\n"
+        obj_string +="app.doc.getAnnots = function () { return app.doc.annots;};\n"
+        obj_string +="app.eval = function (string) { eval(string);};\n"
+        obj_string +="app.newDoc = function () { return '';};\n"
+        obj_string +="app.getString = function () { ret = \"\"; for(var prop in app){ ret += app[prop]; } return ret;};\n"
+        #return obj_string
         #print app
     except Exception as e:
-        #print "App: " + e.message
+        print "App: " + e.message
         pass
     try:
         info = build_pdf_objects.create_info_obj(tree)
-        context.eval("this.info = " + str(info) + ";")
-        context.eval("this.eval = eval")
+        obj_string +="this.info = " + str(info) + ";\n"
+        obj_string +="this.eval = eval;\n"
         #print info
     except Exception as e:
-        #print "Info: " + e.message
+        print "Info: " + e.message
         pass
     try:
         event = build_pdf_objects.create_event_obj(tree)
-        context.eval("event = " + str(event) + ";")
-        context.eval("event.target.info = this.info")
+        obj_string +="event = " + str(event) + ";\n"
+        obj_string +="event.target.info = this.info;\n"
         #print event
     except Exception as e:
-        #print "Event: " + e.message
+        print "Event: " + e.message
         pass
+    return obj_string
 
 
 def eval_loop (code, context, old_msg = ""):
@@ -145,25 +149,20 @@ def eval_loop (code, context, old_msg = ""):
         return context.eval("evalCode")
 
 def analyse (js, tree):
-    context = PyV8.JSContext(Global())
-    context.enter()
-    context.eval('eval=evalOverride')
-    #print context.eval('evalCode')
-    if JS_MODULE:
         try:
+            eval_string = '_eval = eval; eval = function (expression) { console.log(expression); return;};\n'
             if tree is not None:
-                create_objs(context, tree)
-            ret = eval_loop(js, context)    
+                eval_string += create_objs(tree)
+            eval_string += js
+            ret = check_output(["nodejs", "sandbox.js", eval_string])
+            #print 'ret: ' + ret
             if ret == None:
                 return ''
             else:
                 return ret
         except Exception as e:
-            return 'Error with analyzing JS: ' + e.message
-            #return ''
-    else:
-        print 'Error with PyV8 context'
-        return ''
+            #return 'Error with analyzing JS: ' + e.message
+            return ''
     
 
 
