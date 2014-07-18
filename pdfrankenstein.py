@@ -11,6 +11,7 @@ import traceback
 import multiprocessing
 from Queue import Full, Empty
 
+import huntterp
 import xml_creator
 from JSAnalysis import analyse as analyse
 from util import unescapeHTMLEntities as unescapeHTML
@@ -151,6 +152,7 @@ class Hasher(multiprocessing.Process):
             Reset the values on each pdf.
             '''
             err = []
+            urls = ''
             t_hash = ''
             t_str = ''
             graph = ''
@@ -187,6 +189,8 @@ class Hasher(multiprocessing.Process):
                     t_hash = self.make_tree_hash(graph, err)
                     js = self.get_js(parsed_pdf, err)
                     de_js = self.get_deobf_js(js, parsed_pdf, err)
+                    urls = self.get_urls(js, err)
+                    urls += self.get_urls(de_js, err)
                     swf = self.get_swf(parsed_pdf, err)
                     self.get_errors(parsed_pdf, err)
                 except Exception as e:
@@ -206,6 +210,7 @@ class Hasher(multiprocessing.Process):
                     'swf':swf,
                     'graph':graph,
                     'pdfsize':pdfsize,
+                    'urls':urls,
                     'error':err })
             self.counter.inc()
             self.qin.task_done()
@@ -244,6 +249,15 @@ class Hasher(multiprocessing.Process):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def get_errors(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
+    def get_urls(self, haystack, err='', needle=''):
+        urls = ''
+        if not needle:
+            for needle in huntterp.Test.tests:
+                urls = huntterp.find_in_hex(needle, haystack)
+        else:
+            urls = huntterp.find_in_hex(needle, haystack)
+        return '\n'.join([u[1] for u in urls])
+    
 
 class PDFMinerHasher(Hasher):
 
@@ -253,7 +267,8 @@ class PDFMinerHasher(Hasher):
             parsed = xml_creator.FrankenParser(pdf, self.debug)
         except Exception:
             err.append('<ParseException><pdf="%s">"%s"</ParseException>' % (str(pdf), traceback.format_exc()))
-            write('\nPDFMinerHasher.parse_pdf():\n\t%s\n' % err[-1])
+            if self.debug:
+                write('\nPDFMinerHasher.parse_pdf():\n\t%s\n' % err[-1])
         return parsed
 
     def make_tree_string(self, pdf, err):
@@ -489,7 +504,8 @@ class DbStorage(Storage):
         'fsize',
         'pdfsize',
         'bin_blob',
-        'error')
+        'urls',
+        'errors')
     primary = 'pdf_md5'
     
     def __init__(self):
