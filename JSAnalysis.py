@@ -1,29 +1,9 @@
-import build_pdf_objects, re, lxml.etree as ET
+import build_pdf_objects, PyV8, re, lxml.etree as ET
 from util import unescapeHTMLEntities
-try:
-    import PyV8
-    
-    JS_MODULE = True
-    
-    class Global(PyV8.JSClass):
-        evalCode = ''
-        
-        def evalOverride(self, expression):
-            if self.evalCode.find(expression) == -1:
-                self.evalCode += expression +'\n'
-            return
-
-        """def evalOverride2(self, expression):
-            if self.evalCode.find(expression) == -1:
-                self.evalCode += expression +'\n'
-            return PyV8.JSContext.current.eval(expression)"""
-        
-except:
-    JS_MODULE = False
 
 reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
 
-#Mimic native Adove objects and add them to the context
+#Mimic native Adobe objects and add them to the context
 def create_objs(context, tree):
     try: 
         app = build_pdf_objects.create_app_obj(tree)
@@ -57,7 +37,7 @@ def create_objs(context, tree):
 
 def eval_loop (code, context, old_msg = ""):
     try:
-        context.eval(code)
+        context.eval(code) 
         return context.eval("evalCode")
     except ReferenceError as e:
         #print e.message
@@ -73,7 +53,6 @@ def eval_loop (code, context, old_msg = ""):
             line_num = re.findall("@\s(\d*?)\s", e.message)
             line_num = int(line_num[0])
             i = 0
-
             for item in code.split("\n"):
                 i += 1
                 if i == line_num:
@@ -145,28 +124,25 @@ def eval_loop (code, context, old_msg = ""):
         return context.eval("evalCode")
 
 def analyse (js, tree):
-    context = PyV8.JSContext(Global())
-    context.enter()
-    context.eval('eval=evalOverride')
-    #print context.eval('evalCode')
-    if JS_MODULE:
+    with PyV8.JSIsolate():
+        context = PyV8.JSContext()
+        context.enter()
+        context.eval('evalCode = \'\';')
+        context.eval('evalOverride = function (expression) { evalCode += expression; return;}')
+        context.eval('eval=evalOverride')
         try:
             if tree is not None:
                 create_objs(context, tree)
-            ret = eval_loop(js, context)    
+            ret = eval_loop(js, context)   
+            context.leave()
             if ret == None:
                 return ''
             else:
                 return ret
         except Exception as e:
-            return 'Error with analyzing JS: ' + e.message
-            #return ''
-    else:
-        print 'Error with PyV8 context'
-        return ''
-    
-
-
+            context.leave()
+            #return 'Error with analyzing JS: ' + e.message
+            return ''
 
 def isJavascript(content):
     '''
