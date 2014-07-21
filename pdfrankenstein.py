@@ -160,6 +160,8 @@ class Hasher(multiprocessing.Process):
             graph = ''
             obf_js = ''
             de_js = ''
+            obf_js_sdhash = ''
+            de_js_sdhash = ''
             swf = ''
             fsize = ''
             pdfsize = ''
