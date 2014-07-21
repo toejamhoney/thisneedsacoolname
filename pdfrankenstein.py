@@ -7,10 +7,13 @@ import time
 import getopt
 import hashlib
 import argparse
+import tempfile
 import traceback
+import subprocess
 import multiprocessing
 from Queue import Full, Empty
 
+import huntterp
 import xml_creator
 from JSAnalysis import analyse as analyse
 from util import unescapeHTMLEntities as unescapeHTML
@@ -151,14 +154,16 @@ class Hasher(multiprocessing.Process):
             Reset the values on each pdf.
             '''
             err = []
+            urls = ''
             t_hash = ''
             t_str = ''
             graph = ''
-            js = ''
+            obf_js = ''
             de_js = ''
             swf = ''
             fsize = ''
             pdfsize = ''
+            bin_blob = ''
             
             '''
             Arguments are validated when Jobber adds them to the queue based
@@ -185,9 +190,14 @@ class Hasher(multiprocessing.Process):
                     graph = self.make_graph(parsed_pdf, err)
                     t_str = self.make_tree_string(parsed_pdf, err)
                     t_hash = self.make_tree_hash(graph, err)
-                    js = self.get_js(parsed_pdf, err)
-                    de_js = self.get_deobf_js(js, parsed_pdf, err)
+                    obf_js = self.get_js(parsed_pdf, err)
+                    de_js = self.get_deobf_js(obf_js, parsed_pdf, err)
+                    obf_js_sdhash = self.make_sdhash(obf_js, err)
+                    de_js_sdhash = self.make_sdhash(de_js, err)
+                    urls = self.get_urls(obf_js, err)
+                    urls += self.get_urls(de_js, err)
                     swf = self.get_swf(parsed_pdf, err)
+                    bin_blob = parsed_pdf.bin_blob
                     self.get_errors(parsed_pdf, err)
                 except Exception as e:
                     err.append('UNCAUGHT PARSING EXCEPTION:\n%s' % traceback.format_exc())
@@ -201,11 +211,15 @@ class Hasher(multiprocessing.Process):
                     'pdf_md5':pdf_name,
                     'tree_md5':t_hash,
                     'tree':t_str,
-                    'obf_js':js,
+                    'obf_js':obf_js,
                     'deobf_js':de_js,
                     'swf':swf,
                     'graph':graph,
                     'pdfsize':pdfsize,
+                    'urls':urls,
+                    'bin_blob':bin_blob,
+                    'obf_js_sdhash':obf_js_sdhash,
+                    'de_js_sdhash':de_js_sdhash,
                     'error':err })
             self.counter.inc()
             self.qin.task_done()
@@ -236,6 +250,21 @@ class Hasher(multiprocessing.Process):
         except TypeError:
             err.append('<HashException>%s</HashException>' % traceback.format_exc())
         return t_hash
+
+    def make_sdhash(self, data, err=''):
+        try:
+            tmpfile = tempfile.NamedTemporaryFile(delete=True)
+        except IOError:
+            stdout = ''
+        else:
+            tmpfile.write(data)
+            cmd = ['sdhash', tmpfile.name]
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = proc.communicate(data)
+            tmpfile.close()
+        finally:
+            return stdout
+
     def get_js(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def get_debof_js(self, js, pdf, err=''):
@@ -244,6 +273,15 @@ class Hasher(multiprocessing.Process):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def get_errors(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
+    def get_urls(self, haystack, err='', needle=''):
+        urls = ''
+        if not needle:
+            for needle in huntterp.Test.tests:
+                urls = huntterp.find_in_hex(needle, haystack)
+        else:
+            urls = huntterp.find_in_hex(needle, haystack)
+        return '\n'.join([u[1] for u in urls])
+    
 
 class PDFMinerHasher(Hasher):
 
@@ -253,7 +291,8 @@ class PDFMinerHasher(Hasher):
             parsed = xml_creator.FrankenParser(pdf, self.debug)
         except Exception:
             err.append('<ParseException><pdf="%s">"%s"</ParseException>' % (str(pdf), traceback.format_exc()))
-            write('\nPDFMinerHasher.parse_pdf():\n\t%s\n' % err[-1])
+            if self.debug:
+                write('\nPDFMinerHasher.parse_pdf():\n\t%s\n' % err[-1])
         return parsed
 
     def make_tree_string(self, pdf, err):
@@ -481,7 +520,9 @@ class DbStorage(Storage):
         'tree',
         'graph',
         'obf_js',
-        'deobf_js',
+        'de_js',
+        'obf_js_sdhash',
+        'de_js_sdhash',
         'swf',
         'abc',
         'actionscript',
@@ -489,7 +530,8 @@ class DbStorage(Storage):
         'fsize',
         'pdfsize',
         'bin_blob',
-        'error')
+        'urls',
+        'errors')
     primary = 'pdf_md5'
     
     def __init__(self):

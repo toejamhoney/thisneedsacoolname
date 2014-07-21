@@ -294,6 +294,8 @@ class PDFDocument(object):
             debug = 3
         "Set the document to use a given PDFParser object."
         self.caching = caching
+        self.eof_distance = 0
+        self.found_eof = False 
         self.xrefs = []
         self.info = []
         self.errors = []
@@ -555,10 +557,19 @@ class PDFDocument(object):
         """Internal function used to locate the first XRef."""
         # search the last xref table by scanning the file backwards.
         prev = None
+        eof = '%EOF'
+        self.eof_distance = 0
         for line in parser.revreadlines():
             line = line.strip()
             if 2 <= self.debug:
                 print >>sys.stderr, 'find_xref: %r' % line
+            if not self.found_eof:
+                if eof in line:
+                    self.found_eof = True
+                    idx = line.find(eof)
+                    self.eof_distance += len(line[idx+len(eof):])
+                else:
+                    self.eof_distance += len(line)
             if line == 'startxref':
                 break
             if line:
