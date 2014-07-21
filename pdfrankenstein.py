@@ -161,6 +161,7 @@ class Hasher(multiprocessing.Process):
             swf = ''
             fsize = ''
             pdfsize = ''
+            bin_blob = ''
             
             '''
             Arguments are validated when Jobber adds them to the queue based
@@ -192,6 +193,7 @@ class Hasher(multiprocessing.Process):
                     urls = self.get_urls(js, err)
                     urls += self.get_urls(de_js, err)
                     swf = self.get_swf(parsed_pdf, err)
+                    bin_blob = parsed_pdf.bin_blob
                     self.get_errors(parsed_pdf, err)
                 except Exception as e:
                     err.append('UNCAUGHT PARSING EXCEPTION:\n%s' % traceback.format_exc())
@@ -211,6 +213,7 @@ class Hasher(multiprocessing.Process):
                     'graph':graph,
                     'pdfsize':pdfsize,
                     'urls':urls,
+                    'bin_blob':bin_blob,
                     'error':err })
             self.counter.inc()
             self.qin.task_done()

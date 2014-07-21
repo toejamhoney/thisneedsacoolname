@@ -16,6 +16,8 @@ class FrankenParser(object):
         self.javascript = []
         self.deobfuscated = []
         self.swf = []
+        self.found_eof = False
+        self.bin_blob = ''
         self.parse()
         self.tree = self.tree_from_xml(self.xml)
 
@@ -96,6 +98,8 @@ class FrankenParser(object):
         fp = file(self.pdf, 'rb')
         parser = PDFParser(fp, dbg=self.debug)
         doc = PDFDocument(parser, dbg=self.debug)
+        if doc.found_eof and doc.eof_distance > 3:
+            self.bin_blob = parser.read_from_end(doc.eof_distance)
         res = '<pdf>'
         visited = set()
         #js = []

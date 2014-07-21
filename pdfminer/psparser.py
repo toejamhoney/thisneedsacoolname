@@ -275,6 +275,12 @@ class PSBaseParser(object):
                 buf = ''
         return
 
+    def read_from_end(self, nbytes):
+        self.fp.seek(-nbytes, 2)
+        buff = self.fp.read()
+        self.fp.seek(0)
+        return buff
+
     def _parse_main(self, s, i):
         m = NONSPC.search(s, i)
         if not m:
