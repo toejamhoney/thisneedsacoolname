@@ -6,7 +6,6 @@ import glob
 import time
 import getopt
 import hashlib
-import argparse
 import tempfile
 import traceback
 import subprocess
@@ -43,10 +42,12 @@ class ParsedArgs(object):
     out = 't-hash-{stamp}.txt'.format(stamp = time.strftime("%Y-%m-%d_%H-%M-%S"))
     debug = False
     verbose = False
+    hasher = 'PDFMiner'
 
 class ArgParser(object):
 
     def __init__(self):
+    	import argparse
         if not argparse:
             print 'Error in ArgParser. Unable to import argparse'
             sys.exit(1)
@@ -74,8 +75,8 @@ class GetOptParser(object):
     Necessary for outdated versions of Python. Versions that aren't even
     updated, and won't even have src code security updates as of 2013.
     '''
-    shorts = 'o:dv'
-    longs = [ 'out=', 'debug', 'verbose' ]
+    shorts = 'o:h:dv'
+    longs = [ 'out=', 'hasher=', 'debug', 'verbose' ]
 
     def parse(self):
         parsed = ParsedArgs()
@@ -254,6 +255,7 @@ class Hasher(multiprocessing.Process):
         return t_hash
 
     def make_sdhash(self, data, err=''):
+        stdout = ''
         try:
             tmpfile = tempfile.NamedTemporaryFile(delete=True)
         except IOError:
