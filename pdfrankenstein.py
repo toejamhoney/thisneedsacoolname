@@ -214,7 +214,7 @@ class Hasher(multiprocessing.Process):
                     'tree_md5':t_hash,
                     'tree':t_str,
                     'obf_js':obf_js,
-                    'deobf_js':de_js,
+                    'de_js':de_js,
                     'swf':swf,
                     'graph':graph,
                     'pdfsize':pdfsize,
@@ -222,7 +222,7 @@ class Hasher(multiprocessing.Process):
                     'bin_blob':bin_blob,
                     'obf_js_sdhash':obf_js_sdhash,
                     'de_js_sdhash':de_js_sdhash,
-                    'error':err })
+                    'errors':err })
             self.counter.inc()
             self.qin.task_done()
 
@@ -315,8 +315,8 @@ class PDFMinerHasher(Hasher):
     def get_deobf_js(self, js, pdf, err):
         de_js = ''
         try:
-            #de_js = analyse(js, pdf.tree)
-            de_js = 'TODO'
+            de_js = analyse(js, pdf.tree)
+            #de_js = 'TODO'
         except Exception as e:
             err.append('<DeobfuscateJSException>%s</DeobfuscateJSException>' % traceback.format_exc())
         return de_js
@@ -544,6 +544,9 @@ class DbStorage(Storage):
 
     def store(self, data_dict):
         data_dict = self.align_kwargs(data_dict)
+        #for i in range(len(data_dict)):
+        #    print data_dict[i].de_js;
+        #print data_dict.de_js
         self.db.insert(self.table, cols=self.cols, vals=data_dict)
     
     def close(self):
