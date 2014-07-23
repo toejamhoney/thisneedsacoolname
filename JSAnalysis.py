@@ -154,7 +154,8 @@ def analyse (js, tree):
             if tree is not None:
                 eval_string += create_objs(tree)
             eval_string += js
-            ret = check_output(["nodejs", "sandbox.js", eval_string])
+            #ret = check_output(["nodejs", "sandbox.js", eval_string])
+            ret = check_output(["docker", "run", "-i", "node-base", "/bin/bash","nodejs", "docker.js", eval_string])
             #print 'ret: ' + ret
             if ret == None:
                 return ''
