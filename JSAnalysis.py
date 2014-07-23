@@ -1,4 +1,11 @@
-import build_pdf_objects, PyV8, re, lxml.etree as ET
+import build_pdf_objects
+try:
+    import PyV8
+except ImportError as e:
+    print str(e)
+    PyV8 = None
+import re
+import lxml.etree as ET
 from util import unescapeHTMLEntities
 
 reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
@@ -124,6 +131,8 @@ def eval_loop (code, context, old_msg = ""):
         return context.eval("evalCode")
 
 def analyse (js, tree):
+    if not PyV8:
+	return ''
     with PyV8.JSIsolate():
         context = PyV8.JSContext()
         context.enter()
