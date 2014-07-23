@@ -280,8 +280,10 @@ class Hasher(multiprocessing.Process):
         if not needle:
             for needle in huntterp.Test.tests:
                 urls = huntterp.find_in_hex(needle, haystack)
+                urls += huntterp.find_unicode(needle, haystack)
         else:
             urls = huntterp.find_in_hex(needle, haystack)
+            urls += huntterp.find_unicode(haystack)
         return '\n'.join([u[1] for u in urls])
     
 
