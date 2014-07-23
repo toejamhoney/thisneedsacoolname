@@ -231,6 +231,9 @@ class PDFStream(PDFObject):
             self.rawdata = None
             return
         for f in filters:
+            if isinstance(f,PDFObjRef):
+                filters +=f.resolve()
+                continue
             params = self.get_any(('DP', 'DecodeParms', 'FDecodeParms'), {})
             if f in LITERALS_FLATE_DECODE:
                 # will get errors if the document is encrypted.
