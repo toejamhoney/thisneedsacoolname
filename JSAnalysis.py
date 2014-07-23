@@ -20,7 +20,6 @@ def create_objs(context, tree):
         context.eval("app.eval = function (string) { eval(string);}")
         context.eval("app.newDoc = function () { return '';}")
         context.eval("app.getString = function () { ret = \"\"; for(var prop in app){ ret += app[prop]; } return ret;}")
-        #print app
     except Exception as e:
         #print "App: " + e.message
         pass
@@ -28,7 +27,6 @@ def create_objs(context, tree):
         info = build_pdf_objects.create_info_obj(tree)
         context.eval("this.info = " + str(info) + ";")
         context.eval("this.eval = eval")
-        #print info
     except Exception as e:
         #print "Info: " + e.message
         pass
@@ -36,22 +34,21 @@ def create_objs(context, tree):
         event = build_pdf_objects.create_event_obj(tree)
         context.eval("event = " + str(event) + ";")
         context.eval("event.target.info = this.info")
-        #print event
     except Exception as e:
         #print "Event: " + e.message
         pass
 
-
+'''
+    Eval the code and handle any exceptions it throws
+'''
 def eval_loop (code, context, old_msg = ""):
     try:
         context.eval(code) 
         return context.eval("evalCode")
+    #catch exceptions and attempt to fix them
     except ReferenceError as e:
         #print e.message
-
-        #do something to fix  
         if e.message == old_msg:
-            #return e.message
             return context.eval("evalCode")
         elif e.message.find('$') > -1:
             context.eval("$ = this;")
@@ -69,7 +66,6 @@ def eval_loop (code, context, old_msg = ""):
     except TypeError as te:
         #print te.message
         if te.message == old_msg:
-            #return te.message
             return context.eval("evalCode")
         elif te.message.find("called on null or undefined") > -1:
             #in Adobe undefined objects become app object
@@ -88,7 +84,6 @@ def eval_loop (code, context, old_msg = ""):
                 line = re.escape(line[0])
                 code = re.sub(line, sub, code)
             else:
-                #return te.message
                 return context.eval("evalCode")
         elif te.message.find("Cannot read property") > -1:
             #undefined becomes app
@@ -99,16 +94,13 @@ def eval_loop (code, context, old_msg = ""):
                 line = re.escape(line[0])
                 code = re.sub(line, sub, code)
             else:
-                #return te.message
                 return context.eval("evalCode")
         else:
-            #return te.message
             return context.eval("evalCode")
         return eval_loop(code, context, te.message)
     except SyntaxError as se:
         #print se.message
         if se.message == old_msg:
-            #return se.message
             return context.eval("evalCode")
         line_num = re.findall("@\s(\d*?)\s", se.message)
         if len(line_num) > 0:
@@ -122,12 +114,10 @@ def eval_loop (code, context, old_msg = ""):
                     code, n = re.subn(esc_item, "//" + item, code)
                     break
         else:
-            #return se.message
             return context.eval('evalCode')
         eval_loop(code, context, se.message)
     except Exception as e1:
         #print e1.message
-        #return e1.message
         return context.eval("evalCode")
 
 def analyse (js, tree):
