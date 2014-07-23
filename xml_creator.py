@@ -1,7 +1,7 @@
 import re, lxml.etree as ET
 from  pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfparser import PDFParser
-from pdfminer.pdftypes import PDFStream, PDFObjRef
+from pdfminer.pdftypes import PDFStream, PDFObjRef, PDFNotImplementedError
 from pdfminer.psparser import PSKeyword, PSLiteral
 from pdfminer.utils import isnumber
 from JSAnalysis import isJavascript
@@ -54,13 +54,17 @@ class FrankenParser(object):
             return res
 
         if isinstance(obj, PDFStream):
-            res += '<stream>\n<props>\n'
-            res += self.dump(obj.attrs)
-            res += '\n</props>\n'
-            data = obj.get_data()
-            self.check_js(str(data))
-            self.check_swf(str(data))
-            res += '<data size="' + str(len(data)) + '">' + self.e(data).encode('base64') + '</data>\n'
+            res += '<stream>\n'
+            try:
+                res += '<props>\n'
+                res += self.dump(obj.attrs)
+                res += '\n</props>\n'
+                data = obj.get_data()
+                self.check_js(str(data))
+                self.check_swf(str(data))
+                res += '<data size="' + str(len(data)) + '">' + self.e(data).encode('base64') + '</data>\n'
+            except Exception as e:
+                print e.message
             res += '</stream>'
             return res
 
