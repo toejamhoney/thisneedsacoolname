@@ -24,11 +24,14 @@ def create_objs(context, tree):
         #print "App: " + e.message
         pass
     try:
-        info = build_pdf_objects.create_info_obj(tree)
+        info = build_pdf_objects.create_info_obj(tree)  
         context.eval("this.info = " + str(info) + ";")
+        for key in info:
+            context.eval("this." + key + "= '" + info[key] + "';")
         context.eval("this.eval = eval")
+        #print info
     except Exception as e:
-        #print "Info: " + e.message
+        print "Info: " + e.message
         pass
     try:
         event = build_pdf_objects.create_event_obj(tree)
@@ -150,7 +153,7 @@ def isJavascript(content):
         @param content: A string
         @return: A boolean, True if it seems to contain Javascript code or False in the other case
     '''
-    JSStrings = ['var ',';',')','(','function ','=','{','}','if ','else','return','while ','for ',',','eval']
+    JSStrings = ['var ',';',')','(','function ','=','{','}','if ','else','return','while ','for ',',','eval', 'unescape', '.replace']
     keyStrings = [';','(',')']
     stringsFound = []
     limit = 15
