@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import glob
+import json
 import time
 import getopt
 import hashlib
@@ -168,6 +169,7 @@ class Hasher(multiprocessing.Process):
             fsize = ''
             pdfsize = ''
             bin_blob = ''
+            malformed = {}
             
             '''
             Arguments are validated when Jobber adds them to the queue based
@@ -203,11 +205,18 @@ class Hasher(multiprocessing.Process):
                     swf = self.get_swf(parsed_pdf, err)
                     swf_sdhash = self.make_sdhash(swf, err)
                     bin_blob = parsed_pdf.bin_blob
+                    malformed = parsed_pdf.getmalformed()
                     self.get_errors(parsed_pdf, err)
                 except Exception as e:
                     err.append('UNCAUGHT PARSING EXCEPTION:\n%s' % traceback.format_exc())
 
             err = 'Error: '.join(err)
+            malformed['skipkeys'] = False
+            try:
+                json_malformed = json.dumps(malformed)
+            except (TypeError, ValueError):
+                malformed['skipkeys'] = True
+                json_malformed = json.dumps(malformed, skipkeys=True)
 
             self.qout.put({'fsize':fsize,
                     'pdf_md5':pdf_name,
@@ -223,6 +232,7 @@ class Hasher(multiprocessing.Process):
                     'obf_js_sdhash':obf_js_sdhash,
                     'de_js_sdhash':de_js_sdhash,
                     'swf_sdhash':swf_sdhash,
+                    'malformed': json_malformed,
                     'errors':err })
             self.counter.inc()
             self.qin.task_done()
@@ -522,7 +532,8 @@ class DbStorage(Storage):
     
     from db_mgmt import DBGateway
     table = 'parsed_pdfs'
-    cols = ('pdf_md5',
+    cols = ('category',
+        'pdf_md5',
         'tree_md5',
         'tree',
         'graph',
@@ -534,13 +545,14 @@ class DbStorage(Storage):
         'swf_sdhash',
         'abc',
         'abc_sdhash',
-        'as',
+        'actionscript',
         'as_sdhash',
         'shellcode',
         'fsize',
         'pdfsize',
         'bin_blob',
         'urls',
+        'malformed',
         'errors')
     primary = 'pdf_md5'
     

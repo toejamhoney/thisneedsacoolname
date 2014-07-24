@@ -2,6 +2,7 @@ import re, lxml.etree as ET
 from  pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdftypes import PDFStream, PDFObjRef, PDFNotImplementedError
+from pdfminer.pdftypes import PDFObjectNotFound
 from pdfminer.psparser import PSKeyword, PSLiteral
 from pdfminer.utils import isnumber
 from JSAnalysis import isJavascript
@@ -22,6 +23,7 @@ class FrankenParser(object):
         self.swf = []
         self.found_eof = False
         self.bin_blob = ''
+        self.malformed = {}
         self.parse()
         self.tree = self.tree_from_xml(self.xml)
 
@@ -111,6 +113,23 @@ class FrankenParser(object):
         return res
 
     '''
+    Records information into a dictionary.
+    All key values are lists, and the paramter is appended.
+    '''
+    def takenote(self, dic, key, val):
+        try:
+            dic[key].append(val)
+        except KeyError:
+            dic[key] = []
+            dic[key].append(val)
+
+    def getmalformed(self, key=''):
+        if not key:
+            return self.malformed
+        else:
+            return self.malformed.get(key)
+
+    '''
         Parse the pdf and build the xml
     '''
     def parse (self):
@@ -132,8 +151,12 @@ class FrankenParser(object):
                     res += '<object id="' + str(objid) + '">\n'
                     res += self.dump(obj)
                     res += '\n</object>\n\n'
+                except PDFObjectNotFound as e:
+                    mal_obj = parser.read_n_from(xref.get_pos(objid)[1], 4096)
+                    mal_obj = mal_obj.replace('<', '0x3C')
+                    res += '<object id="%d" type="malformed">\n%s\n</object>\n\n' % (objid, mal_obj)
+                    self.takenote(self.malformed, 'objects', objid)
                 except Exception as e:
-                    #usually means the object cannot be found
                     print e.message
         fp.close()
         res += self.dumptrailers(doc)
@@ -174,6 +197,7 @@ class FrankenParser(object):
             return tree
         except Exception as e:
             print "Tree Error"
+            print repr(e)
             print e.message
             return None
 

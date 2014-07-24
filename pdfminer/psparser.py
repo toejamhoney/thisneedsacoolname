@@ -275,6 +275,13 @@ class PSBaseParser(object):
                 buf = ''
         return
 
+    def read_n_from(self, pos, nbytes):
+        oldpos = self.fp.tell()
+        self.fp.seek(pos, 0)
+        buff = self.fp.read(nbytes)
+        self.fp.seek(oldpos, 0)
+        return buff
+
     def read_from_end(self, nbytes):
         self.fp.seek(-nbytes, 2)
         buff = self.fp.read()
