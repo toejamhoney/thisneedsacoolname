@@ -162,6 +162,7 @@ class Hasher(multiprocessing.Process):
             de_js = ''
             obf_js_sdhash = ''
             de_js_sdhash = ''
+            swf_sdhash = ''
             swf = ''
             fsize = ''
             pdfsize = ''
@@ -199,14 +200,12 @@ class Hasher(multiprocessing.Process):
                     urls = self.get_urls(obf_js, err)
                     urls += self.get_urls(de_js, err)
                     swf = self.get_swf(parsed_pdf, err)
+                    swf_sdhash = self.make_sdhash(swf, err)
                     bin_blob = parsed_pdf.bin_blob
                     self.get_errors(parsed_pdf, err)
                 except Exception as e:
                     err.append('UNCAUGHT PARSING EXCEPTION:\n%s' % traceback.format_exc())
 
-            '''
-            If the list is empty this will be an emptry string; no "Error: " text.
-            '''
             err = 'Error: '.join(err)
 
             self.qout.put({'fsize':fsize,
@@ -222,6 +221,7 @@ class Hasher(multiprocessing.Process):
                     'bin_blob':bin_blob,
                     'obf_js_sdhash':obf_js_sdhash,
                     'de_js_sdhash':de_js_sdhash,
+                    'swf_sdhash':swf_sdhash,
                     'error':err })
             self.counter.inc()
             self.qin.task_done()
@@ -256,7 +256,8 @@ class Hasher(multiprocessing.Process):
     def make_sdhash(self, data, err=''):
         try:
             tmpfile = tempfile.NamedTemporaryFile(delete=True)
-        except IOError:
+        except IOError as e:
+            err.append('<SdHashException>%s</SdHashException>' % traceback.format_exc())
             stdout = ''
         else:
             tmpfile.write(data)
@@ -522,12 +523,15 @@ class DbStorage(Storage):
         'tree',
         'graph',
         'obf_js',
-        'de_js',
         'obf_js_sdhash',
+        'de_js',
         'de_js_sdhash',
         'swf',
+        'swf_sdhash',
         'abc',
-        'actionscript',
+        'abc_sdhash',
+        'as',
+        'as_sdhash',
         'shellcode',
         'fsize',
         'pdfsize',
