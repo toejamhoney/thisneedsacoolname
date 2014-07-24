@@ -6,7 +6,6 @@ import glob
 import time
 import getopt
 import hashlib
-import argparse
 import tempfile
 import traceback
 import subprocess
@@ -43,10 +42,12 @@ class ParsedArgs(object):
     out = 't-hash-{stamp}.txt'.format(stamp = time.strftime("%Y-%m-%d_%H-%M-%S"))
     debug = False
     verbose = False
+    hasher = 'PDFMiner'
 
 class ArgParser(object):
 
     def __init__(self):
+    	import argparse
         if not argparse:
             print 'Error in ArgParser. Unable to import argparse'
             sys.exit(1)
@@ -74,8 +75,8 @@ class GetOptParser(object):
     Necessary for outdated versions of Python. Versions that aren't even
     updated, and won't even have src code security updates as of 2013.
     '''
-    shorts = 'o:dv'
-    longs = [ 'out=', 'debug', 'verbose' ]
+    shorts = 'o:h:dv'
+    longs = [ 'out=', 'hasher=', 'debug', 'verbose' ]
 
     def parse(self):
         parsed = ParsedArgs()
@@ -213,7 +214,7 @@ class Hasher(multiprocessing.Process):
                     'tree_md5':t_hash,
                     'tree':t_str,
                     'obf_js':obf_js,
-                    'deobf_js':de_js,
+                    'de_js':de_js,
                     'swf':swf,
                     'graph':graph,
                     'pdfsize':pdfsize,
@@ -222,7 +223,7 @@ class Hasher(multiprocessing.Process):
                     'obf_js_sdhash':obf_js_sdhash,
                     'de_js_sdhash':de_js_sdhash,
                     'swf_sdhash':swf_sdhash,
-                    'error':err })
+                    'errors':err })
             self.counter.inc()
             self.qin.task_done()
 
@@ -254,6 +255,7 @@ class Hasher(multiprocessing.Process):
         return t_hash
 
     def make_sdhash(self, data, err=''):
+        stdout = ''
         try:
             tmpfile = tempfile.NamedTemporaryFile(delete=True)
         except IOError as e:
@@ -281,8 +283,10 @@ class Hasher(multiprocessing.Process):
         if not needle:
             for needle in huntterp.Test.tests:
                 urls = huntterp.find_in_hex(needle, haystack)
+                urls += huntterp.find_unicode(needle, haystack)
         else:
             urls = huntterp.find_in_hex(needle, haystack)
+            urls += huntterp.find_unicode(haystack)
         return '\n'.join([u[1] for u in urls])
     
 
@@ -316,8 +320,8 @@ class PDFMinerHasher(Hasher):
     def get_deobf_js(self, js, pdf, err):
         de_js = ''
         try:
-            #de_js = analyse(js, pdf.tree)
-            de_js = 'TODO'
+            de_js = analyse(js, pdf.tree)
+            #de_js = 'TODO'
         except Exception as e:
             err.append('<DeobfuscateJSException>%s</DeobfuscateJSException>' % traceback.format_exc())
         return de_js
@@ -548,6 +552,9 @@ class DbStorage(Storage):
 
     def store(self, data_dict):
         data_dict = self.align_kwargs(data_dict)
+        #for i in range(len(data_dict)):
+        #    print data_dict[i].de_js;
+        #print data_dict.de_js
         self.db.insert(self.table, cols=self.cols, vals=data_dict)
     
     def close(self):

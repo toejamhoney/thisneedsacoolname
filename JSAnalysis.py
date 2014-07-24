@@ -1,29 +1,16 @@
-import build_pdf_objects, re, lxml.etree as ET
-from util import unescapeHTMLEntities
+import build_pdf_objects
 try:
     import PyV8
-    
-    JS_MODULE = True
-    
-    class Global(PyV8.JSClass):
-        evalCode = ''
-        
-        def evalOverride(self, expression):
-            if self.evalCode.find(expression) == -1:
-                self.evalCode += expression +'\n'
-            return
-
-        """def evalOverride2(self, expression):
-            if self.evalCode.find(expression) == -1:
-                self.evalCode += expression +'\n'
-            return PyV8.JSContext.current.eval(expression)"""
-        
-except:
-    JS_MODULE = False
+except ImportError as e:
+    print str(e)
+    PyV8 = None
+import re
+import lxml.etree as ET
+from util import unescapeHTMLEntities
 
 reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
 
-#Mimic native Adove objects and add them to the context
+#Mimic native Adobe objects and add them to the context
 def create_objs(context, tree):
     try: 
         app = build_pdf_objects.create_app_obj(tree)
@@ -33,38 +20,38 @@ def create_objs(context, tree):
         context.eval("app.eval = function (string) { eval(string);}")
         context.eval("app.newDoc = function () { return '';}")
         context.eval("app.getString = function () { ret = \"\"; for(var prop in app){ ret += app[prop]; } return ret;}")
-        #print app
     except Exception as e:
         #print "App: " + e.message
         pass
     try:
-        info = build_pdf_objects.create_info_obj(tree)
+        info = build_pdf_objects.create_info_obj(tree)  
         context.eval("this.info = " + str(info) + ";")
+        for key in info:
+            context.eval("this." + key + "= '" + info[key] + "';")
         context.eval("this.eval = eval")
         #print info
     except Exception as e:
-        #print "Info: " + e.message
+        print "Info: " + e.message
         pass
     try:
         event = build_pdf_objects.create_event_obj(tree)
         context.eval("event = " + str(event) + ";")
         context.eval("event.target.info = this.info")
-        #print event
     except Exception as e:
         #print "Event: " + e.message
         pass
 
-
+'''
+    Eval the code and handle any exceptions it throws
+'''
 def eval_loop (code, context, old_msg = ""):
     try:
-        context.eval(code)
+        context.eval(code) 
         return context.eval("evalCode")
+    #catch exceptions and attempt to fix them
     except ReferenceError as e:
         #print e.message
-
-        #do something to fix  
         if e.message == old_msg:
-            #return e.message
             return context.eval("evalCode")
         elif e.message.find('$') > -1:
             context.eval("$ = this;")
@@ -73,7 +60,6 @@ def eval_loop (code, context, old_msg = ""):
             line_num = re.findall("@\s(\d*?)\s", e.message)
             line_num = int(line_num[0])
             i = 0
-
             for item in code.split("\n"):
                 i += 1
                 if i == line_num:
@@ -83,7 +69,6 @@ def eval_loop (code, context, old_msg = ""):
     except TypeError as te:
         #print te.message
         if te.message == old_msg:
-            #return te.message
             return context.eval("evalCode")
         elif te.message.find("called on null or undefined") > -1:
             #in Adobe undefined objects become app object
@@ -102,7 +87,6 @@ def eval_loop (code, context, old_msg = ""):
                 line = re.escape(line[0])
                 code = re.sub(line, sub, code)
             else:
-                #return te.message
                 return context.eval("evalCode")
         elif te.message.find("Cannot read property") > -1:
             #undefined becomes app
@@ -113,16 +97,13 @@ def eval_loop (code, context, old_msg = ""):
                 line = re.escape(line[0])
                 code = re.sub(line, sub, code)
             else:
-                #return te.message
                 return context.eval("evalCode")
         else:
-            #return te.message
             return context.eval("evalCode")
         return eval_loop(code, context, te.message)
     except SyntaxError as se:
         #print se.message
         if se.message == old_msg:
-            #return se.message
             return context.eval("evalCode")
         line_num = re.findall("@\s(\d*?)\s", se.message)
         if len(line_num) > 0:
@@ -136,37 +117,34 @@ def eval_loop (code, context, old_msg = ""):
                     code, n = re.subn(esc_item, "//" + item, code)
                     break
         else:
-            #return se.message
             return context.eval('evalCode')
         eval_loop(code, context, se.message)
     except Exception as e1:
         #print e1.message
-        #return e1.message
         return context.eval("evalCode")
 
 def analyse (js, tree):
-    context = PyV8.JSContext(Global())
-    context.enter()
-    context.eval('eval=evalOverride')
-    #print context.eval('evalCode')
-    if JS_MODULE:
+    if not PyV8:
+	return ''
+    with PyV8.JSIsolate():
+        context = PyV8.JSContext()
+        context.enter()
+        context.eval('evalCode = \'\';')
+        context.eval('evalOverride = function (expression) { evalCode += expression; return;}')
+        context.eval('eval=evalOverride')
         try:
             if tree is not None:
                 create_objs(context, tree)
-            ret = eval_loop(js, context)    
+            ret = eval_loop(js, context)   
+            context.leave()
             if ret == None:
                 return ''
             else:
                 return ret
         except Exception as e:
-            return 'Error with analyzing JS: ' + e.message
-            #return ''
-    else:
-        print 'Error with PyV8 context'
-        return ''
-    
-
-
+            context.leave()
+            #return 'Error with analyzing JS: ' + e.message
+            return ''
 
 def isJavascript(content):
     '''
@@ -175,7 +153,7 @@ def isJavascript(content):
         @param content: A string
         @return: A boolean, True if it seems to contain Javascript code or False in the other case
     '''
-    JSStrings = ['var ',';',')','(','function ','=','{','}','if ','else','return','while ','for ',',','eval']
+    JSStrings = ['var ',';',')','(','function ','=','{','}','if ','else','return','while ','for ',',','eval', 'unescape', '.replace']
     keyStrings = [';','(',')']
     stringsFound = []
     limit = 15
