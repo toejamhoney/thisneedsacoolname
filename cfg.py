@@ -19,20 +19,53 @@ class Config(object):
             self.new_cfg()
 
     def new_cfg(self):
-        self.parser.add_section('general')
-        self.parser.set('general', 'output', 'sqlite3 #default')
-        self.parser.set('general', '#output', 'stdout')
-        self.parser.add_section('database')
-        self.parser.set('database', 'path', os.getcwd())
-        self.parser.set('database', 'user', 'frankenstein')
-        self.parser.set('database', 'pw', 'PuttinOnTheRitz')
-        self.parser.set('database', 'db', 'frankenstein.sqlite')
+        self.section_gen()
+        self.section_db()
+        self.section_net()
         with open(DEFAULT_CFG, 'w') as new_cfg:
             print 'Creating new config file in CWD:', DEFAULT_CFG
             print 'Please double check the default values before running again:'
             print self
             self.parser.write(new_cfg)
         sys.exit(0)
+
+    def section_gen(self):
+        sec = 'general'
+        self.parser.add_section(sec)
+        self.parser.set(sec, 'output', 'sqlite3 #default')
+        self.parser.set(sec, '#output', 'stdout')
+
+    def section_db(self):
+        sec = 'database'
+        self.parser.add_section(sec)
+        self.parser.set(sec, 'path', os.getcwd())
+        self.parser.set(sec, 'user', 'frankenstein')
+        self.parser.set(sec, 'pw', 'PuttinOnTheRitz')
+        self.parser.set(sec, 'db', 'frankenstein.sqlite')
+
+    def section_net(self):
+        sec = 'network'
+        names = set()
+        self.parser.add_section('network')
+        self.parser.set(sec, 'port', '4884')
+        try:
+            fin = open('virtual-machines.txt', 'r')
+        except IOError:
+            pass
+        else:
+            for line in fin:
+                try:
+                    name, ip4addr, desc = line.split(',')
+                except ValueError:
+                    name, ip4addr = line.split(',')
+                else:
+                    self.parser.set(sec, '%s-%s' % (name, 'description'), desc)
+                finally:
+                    self.parser.set(sec, '%s-%s' % (name, 'address'), ip4addr)
+                    names.add(name)
+            fin.close()
+        self.parser.set(sec, 'guests', ','.join(['%s' % n for n in names]))
+
 
     def setting(self, section='', option=''):
         if section and self.parser.has_option(section, option):
@@ -54,3 +87,4 @@ class Config(object):
 
 if __name__ == '__main__':
     cfg = Config()
+    print cfg
