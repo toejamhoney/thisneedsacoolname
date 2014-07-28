@@ -157,7 +157,7 @@ class FrankenParser(object):
                     res += '<object id="%d" type="malformed">\n%s\n</object>\n\n' % (objid, mal_obj)
                     self.takenote(self.malformed, 'objects', objid)
                 except Exception as e:
-                    print e.message
+                    res += '<object id="%d" type="exception">\n%s\n</object>\n\n' % (objid, e.message)
         fp.close()
         res += self.dumptrailers(doc)
         res += '</pdf>'
@@ -196,10 +196,7 @@ class FrankenParser(object):
             tree = ET.fromstring(xml)
             return tree
         except Exception as e:
-            print "Tree Error"
-            print repr(e)
-            print e.message
-            return None
+            return 'TREE_ERROR: %s' % str(e)
 
     '''
         Calls edges to recursively create the graph string

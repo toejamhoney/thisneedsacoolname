@@ -84,8 +84,11 @@ class DBGateway(object):
             if e.message.startswith('UNIQUE'):
                 pass
             else:
-                print e
+                return e
+        except Exception as e:
+            return e
         self.db_conn.commit()
+        return ''
 
     def select(self, cmd_str):
         cmd = 'SELECT %s' % cmd_str

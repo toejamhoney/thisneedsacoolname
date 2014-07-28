@@ -13,6 +13,8 @@ import subprocess
 import multiprocessing
 from Queue import Full, Empty
 
+from scandir import scandir
+
 import huntterp
 import xml_creator
 from JSAnalysis import analyse as analyse
@@ -182,7 +184,7 @@ class Hasher(multiprocessing.Process):
             except Exception as e:
                 err.append('UNEXPECTED OS ERROR:\n%s' % traceback.format_exc())
                 pdf_name = pdf
-            write(' Hashing: %s\n' % pdf_name)
+            write('H\t#%d\t(%d / %d)\t%s\n' % (self.pid, self.counter.value(), self.counter.ceil(), pdf_name))
             '''
             The parse_pdf call will return a value that evaluates to false if it
             did not succeed. Error messages will appended to the err list.
@@ -330,8 +332,11 @@ class PDFMinerHasher(Hasher):
     def get_deobf_js(self, js, pdf, err):
         de_js = ''
         try:
-            de_js = analyse(js, pdf.tree)
-            #de_js = 'TODO'
+            if pdf.tree.startswith('TREE_ERROR'):
+                err.append('<DeobfuscateJSException>%s</DeobfuscateJSException>' % pdf.tree)
+            else:
+                #de_js = analyse(js, pdf.tree)
+                de_js = ''
         except Exception as e:
             err.append('<DeobfuscateJSException>%s</DeobfuscateJSException>' % traceback.format_exc())
         return de_js
@@ -486,16 +491,19 @@ class Stasher(multiprocessing.Process):
             try:
                 t_data = self.qin.get(timeout=90)
             except Empty:
-                write('Stasher: Empty job queue.\n')
+                write('S Empty job queue.\n')
                 proceed = False
             else:
                 if not t_data:
                     nfinished += 1
                     proceed = not nfinished == self.nprocs
-                    write('Stasher: Received a finished message (%d of %d)\n' % (nfinished, self.nprocs))
+                    write('S Received a finished message (%d of %d)\n' % (nfinished, self.nprocs))
                 else:
-                    write('Stashing: %s\n' % t_data.get('pdf_md5'))
-                    self.storage.store(t_data)
+                    write('S\t#%d\t%s\n' % (self.pid, t_data.get('pdf_md5')))
+                    try:
+                        self.storage.store(t_data)
+                    except Exception as e:
+                        write('S\t#%d ERROR storing\t%s\t%s\n' % (self.pid, t_data.get('pdf_md5'), str(e)))
                     self.counter.inc()
                 self.qin.task_done()
         self.storage.close()
@@ -563,11 +571,15 @@ class DbStorage(Storage):
         self.db.create_table(self.table, cols=[ ' '.join([col, 'TEXT']) for col in self.cols], primary=self.primary)
 
     def store(self, data_dict):
-        data_dict = self.align_kwargs(data_dict)
+        data_tuple = self.align_kwargs(data_dict)
         #for i in range(len(data_dict)):
         #    print data_dict[i].de_js;
         #print data_dict.de_js
-        self.db.insert(self.table, cols=self.cols, vals=data_dict)
+        error = self.db.insert(self.table, cols=self.cols, vals=data_tuple)
+        if error:
+            err_tuple = (data_dict.get('pdf_md5'), 'DB_ERROR: %s' % repr(error))
+            self.db.insert(self.table, cols=['pdf_md5', 'errors'], vals=err_tuple)
+
     
     def close(self):
         self.db.disconnect()
@@ -621,7 +633,7 @@ class FileStorage(Storage):
 
 class Counter(object):
 
-    def __init__(self, soft_max, name='Untitled'):
+    def __init__(self, soft_max=0, name='Untitled'):
         self.counter = multiprocessing.RawValue('i', 0)
         self.hard_max = multiprocessing.RawValue('i', 0)
         self.soft_max = soft_max
@@ -660,12 +672,13 @@ class Jobber(multiprocessing.Process):
         write("Jobber started\n")
         job_cnt = 0
         for job in self.jobs:
-            if self.validator.valid(job):
-                self.qu.put(job)
+            if self.validator.valid(job.path):
+                self.qu.put(job.path)
                 job_cnt += 1
         for n in range(self.num_procs):
             self.qu.put(None)
         for counter in self.counters:
+            counter.soft_max = job_cnt
             counter.hard_max.value = job_cnt
         write("Job queues complete: %d processes. Counters set: %d.\n" % (self.num_procs, job_cnt))
 
@@ -741,51 +754,82 @@ def write(msg):
 if __name__ == '__main__':
     pdfs = []
     args = ParserFactory().new_parser().parse()
-    #num_procs = multiprocessing.cpu_count()/2 - 3
-    num_procs = multiprocessing.cpu_count() - 3 
+    num_procs = multiprocessing.cpu_count()/2 - 3
+    #num_procs = multiprocessing.cpu_count() - 4 
     num_procs = num_procs if num_procs > 0 else 1
+    print 'Running on %d processes' % num_procs
 
     if os.path.isdir(args.pdf_in):
         dir_name = os.path.join(args.pdf_in, '*')
-        pdfs = glob.glob(dir_name)
-        print num_procs, 'processes analyzing', len(pdfs), 'samples in directory:', dir_name
+        print 'Examining directory %s' % dir_name
+        #pdfs = glob.iglob(dir_name)
+        pdfs = scandir(args.pdf_in)
     elif os.path.exists(args.pdf_in):
         pdfs.append(args.pdf_in)
         print num_procs, 'processes analyzing file:', args.pdf_in
     else:
         print 'Unable to find PDF file/directory:', args.pdf_in
         sys.exit(1)
-    if not len(pdfs) > 0:
-        print 'Empty sample set'
-        sys.exit(0)
 
+    '''
+    Locks
+    '''
     io_lock = multiprocessing.Lock()
+
+    '''
+    Queues
+    '''
     jobs = multiprocessing.JoinableQueue()
     results = multiprocessing.JoinableQueue()
     msgs = multiprocessing.JoinableQueue()
-    job_validator = FileValidator()
-    job_counter = Counter(len(pdfs), 'Hashed')
-    result_counter = Counter(len(pdfs), 'Stored')
+
+    '''
+    Counters
+    '''
+    job_counter = Counter('Hashed')
+    result_counter = Counter('Stored')
     counters = [job_counter, result_counter]
 
-    hf = HasherFactory()
-    hashers = [ hf.get_hasher(hasher=args.hasher, qin=jobs, qout=results, counter=job_counter, debug=args.debug) for cnt in range(num_procs) ]
-    stasher = Stasher(qin=results, storage=args.out, counter=result_counter, qmsg=msgs, nprocs=num_procs)
+    '''
+    Jobber and Jobs Validator
+    '''
+    job_validator = FileValidator()
     jobber = Jobber(pdfs, jobs, job_validator, counters, num_procs)
+
+    '''
+    Workers
+    '''
+    hf = HasherFactory()
+    print 'Creating hashing processings'
+    hashers = [ hf.get_hasher(hasher=args.hasher, qin=jobs, qout=results, counter=job_counter, debug=args.debug) for cnt in range(num_procs) ]
+    print 'Creating stash process'
+    stasher = Stasher(qin=results, storage=args.out, counter=result_counter, qmsg=msgs, nprocs=num_procs)
     #progress = ProgressBar(counters, LOCK, msgs)
 
-    write("Starting hashing job processes...\n")
+    '''
+    Begin processing
+    '''
+    write("Starting jobber...\n")
     jobber.start()
     msgs.put("Starting stashing job process...\n")
     stasher.start()
+    write("Starting hashing job processes...\n")
     for hasher in hashers:
         hasher.start()
     #progress.start()
 
     #jobs.join()
     #results.join()
+
+    '''
+    Wait on processing
+    '''
     msgs.join()
     time.sleep(1)
+
+    '''
+    End processes
+    '''
     results.put(None)
 
     write("Collecting hashing processes...\n")
