@@ -212,7 +212,9 @@ class FrankenParser(object):
     '''
     def edges(self, parent, output, id):
       for child in list(parent):
-        if child.get("id") != None:
+        if isinstance(child, str):
+            return
+        elif child.get("id") != None:
             cid = child.get("id")
             output.append(str(id) + ' ' + cid +  '\n')
             self.edges(child, output, cid)
