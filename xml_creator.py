@@ -1,3 +1,5 @@
+import os
+import sys
 import re, lxml.etree as ET
 from  pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfparser import PDFParser
@@ -5,9 +7,10 @@ from pdfminer.pdftypes import PDFStream, PDFObjRef, PDFNotImplementedError
 from pdfminer.pdftypes import PDFObjectNotFound
 from pdfminer.psparser import PSKeyword, PSLiteral
 from pdfminer.utils import isnumber
-from JSAnalysis import isJavascript
+#from JSAnalysis import isJavascript
 from SWFAnalysis import isFlash
 
+from scandir import scandir
 
 '''
     Parse a pdf and build an xml tree based on the object structure
@@ -75,7 +78,8 @@ class FrankenParser(object):
                 res += '<data size="' + str(len(data)) + '">' + self.e(data).encode('base64') + '</data>\n'
             #Throws an exception if the filter is unsupported, etc
             except Exception as e:
-                print e.message
+                #print e.message
+                res += '<StreamException>%s</StreamException>' % str(e)
             #make sure the tag is closed appropriately
             res += '</stream>'
             return res
@@ -170,6 +174,7 @@ class FrankenParser(object):
         Check string for javascript content
     '''
     def check_js (self, content):
+        '''
         if isJavascript(content):
             #pull out js between script tags
             reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
@@ -178,6 +183,7 @@ class FrankenParser(object):
                 self.javascript.append('\n'.join(res))
             else:
                 self.javascript.append(content)
+        '''
         return
 
     '''
@@ -203,10 +209,10 @@ class FrankenParser(object):
     '''
     def make_graph(self, tree):
         res = []
-        if tree is not None:
+        if tree:
             self.edges(tree, res, 0)
         return res
-        
+
     '''
        creates string showing connections between objects
     '''
@@ -221,3 +227,62 @@ class FrankenParser(object):
         else:
             res = self.edges(child, output, id)
       return
+
+if __name__ == "__main__":
+    try:
+        dirin = sys.argv[1]
+        dirout = sys.argv[2]
+    except IndexError:
+        sys.exit(0)
+    else:
+        if not os.path.isdir(dirin) or not os.path.isdir(dirout):
+            sys.exit(0)
+
+        sys.stdout.write("%s/*.pdf  -->  %s/*.swf\n\n" % (dirin, dirout))
+
+        try:
+            fdone = open(os.path.join(dirout, "done.txt"), 'a+') 
+            ferr = open(os.path.join(dirout, "error.txt"), 'a')
+        except IOError as e:
+            sys.stderr.write("parser done file error: %s\n" % e)
+        else:
+            completed = set()
+            fdone.seek(0)
+            for line in fdone:
+                completed.add(line.rstrip())
+
+            pdfs = scandir(dirin)
+
+            for pdf in pdfs:
+
+                if pdf.name in completed:
+                    sys.stdout.write("skipping: %s\n" % pdf.name)
+                    continue
+
+                sys.stdout.write("%s\n" % pdf.name)
+
+                try:
+                    parsed = FrankenParser(pdf.path)
+                except Exception as e:
+                    try:
+                        ferr.write("%s:%s\n" % (pdf.name, str(e)))
+                    except Exception:
+                        ferr.write("%s: ferr write() BIG-TIME ERROR\n" % pdf.name)
+                        sys.stderr.write("ferr write error pdf: %s := %s\n" % (pdf.name, e))
+                else:
+                    if parsed.swf:
+                        try:
+                            fout = open(os.path.join(dirout, "%s.swf" % pdf.name), 'wb')
+                        except IOError as e:
+                            sys.stderr.write("parser output file error: %s\n" % e)
+                        else:
+                            fout.write(''.join(parsed.swf))
+                            fout.close()
+                finally:
+                    try:
+                        fdone.write("%s\n" % pdf.name)
+                    except Exception as e:
+                        sys.stderr.write("fdone write error pdf: %s := %s\n" % (pdf.name, e))
+            sys.stdout.write("\n")
+            fdone.close()
+            ferr.close()

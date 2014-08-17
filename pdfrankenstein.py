@@ -14,11 +14,19 @@ import multiprocessing
 from Queue import Full, Empty
 
 from scandir import scandir
+from storage import StorageFactory
+from sdhasher import make_sdhash
 
 import huntterp
 import xml_creator
 from JSAnalysis import analyse as analyse
 from util import unescapeHTMLEntities as unescapeHTML
+
+try:
+    import argparse
+except ImportError:
+    print("Barbaric lack of argparse support")
+    argparse = None
 
 LOCK = multiprocessing.Lock()
 
@@ -50,14 +58,14 @@ class ParsedArgs(object):
 class ArgParser(object):
 
     def __init__(self):
-    	import argparse
         if not argparse:
-            print 'Error in ArgParser. Unable to import argparse'
+            print('Error in ArgParser. Unable to import argparse')
             sys.exit(1)
         self.parser = argparse.ArgumentParser()
         self.parser.add_argument('pdf_in', help="PDF input for analysis")
         self.parser.add_argument('-d', '--debug', action='store_true', default=False, help="Print debugging messages, TODO")
         self.parser.add_argument('-o', '--out', default='t-hash-'+time.strftime("%Y-%m-%d_%H-%M-%S")+'.txt', help="Analysis output filename or type. Default to timestamped file in CWD. Options: 'db'||'stdout'||[filename]")
+        self.parser.add_argument('-n', '--name', default='unnamed-out-'+time.strftime("%Y-%m-%d_%H-%M-%S"), help="Name for output database")
         self.parser.add_argument('--hasher', default='pdfminer', help='Specify which type of hasher to use. PeePDF | PDFMiner (default)') 
         self.parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Spam the terminal, TODO")
 
@@ -96,7 +104,7 @@ class GetOptParser(object):
                 if arg[0].isalnum():
                     parsed.out = arg
                 else:
-                    print 'Invalid output name. Using default:', parsed.out
+                    print('Invalid output name. Using default:' +  str(parsed.out))
             elif opt in ('-d', '--debug'):
                 parsed.debug = True
             elif opt in ('-v', '--verbose'):
@@ -107,12 +115,12 @@ class GetOptParser(object):
         try:
             o, r = getopt.gnu_getopt(sys.argv[1:], self.shorts, self.longs)
         except IndexError:
-            print 'Usage: pdfrankenstein.py <input pdf> [-o value] [-d] [-v]'
+            print('Usage: pdfrankenstein.py <input pdf> [-o value] [-d] [-v]')
             sys.exit(1)
         else:
             if len(r) != 1:
-                print 'One PDF file or directory path required'
-                print 'Usage: pdfrankenstein.py <input pdf> [-o value] [-d] [-v]'
+                print('One PDF file or directory path required')
+                print('Usage: pdfrankenstein.py <input pdf> [-o value] [-d] [-v]')
                 sys.exit(1)
             return o, r
 
@@ -200,12 +208,12 @@ class Hasher(multiprocessing.Process):
                     t_hash = self.make_tree_hash(graph, err)
                     obf_js = self.get_js(parsed_pdf, err)
                     de_js = self.get_deobf_js(obf_js, parsed_pdf, err)
-                    obf_js_sdhash = self.make_sdhash(obf_js, err)
-                    de_js_sdhash = self.make_sdhash(de_js, err)
+                    obf_js_sdhash = make_sdhash(obf_js, err)
+                    de_js_sdhash = make_sdhash(de_js, err)
                     urls = self.get_urls(obf_js, err)
                     urls += self.get_urls(de_js, err)
                     swf = self.get_swf(parsed_pdf, err)
-                    swf_sdhash = self.make_sdhash(swf, err)
+                    swf_sdhash = make_sdhash(swf, err)
                     bin_blob = parsed_pdf.bin_blob
                     malformed = parsed_pdf.getmalformed()
                     self.get_errors(parsed_pdf, err)
@@ -265,7 +273,7 @@ class Hasher(multiprocessing.Process):
         except TypeError:
             err.append('<HashException>%s</HashException>' % traceback.format_exc())
         return t_hash
-
+    '''
     def make_sdhash(self, data, err=''):
         stdout = ''
         try:
@@ -281,6 +289,7 @@ class Hasher(multiprocessing.Process):
             tmpfile.close()
         finally:
             return stdout
+    '''
 
     def get_js(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
@@ -334,18 +343,19 @@ class PDFMinerHasher(Hasher):
         try:
             if pdf.tree.startswith('TREE_ERROR'):
                 err.append('<DeobfuscateJSException>%s</DeobfuscateJSException>' % pdf.tree)
-            else:
+        except AttributeError:
+            try:
                 #de_js = analyse(js, pdf.tree)
-                de_js = ''
-        except Exception as e:
-            err.append('<DeobfuscateJSException>%s</DeobfuscateJSException>' % traceback.format_exc())
+                pass
+            except Exception as e:
+                err.append('<DeobfuscateJSException>%s</DeobfuscateJSException>' % traceback.format_exc())
         return de_js
 
     def get_swf(self, pdf, err):
         swf = ''
         if pdf.swf:
             if isinstance(pdf.swf, list):
-                swf = '\n'.join(pdf.swf)
+                swf = ''.join(pdf.swf)
             elif isinstance(pdf.swf, str):
                 swf = pdf.swf
         return swf
@@ -374,7 +384,7 @@ class PeePDFHasher(Hasher):
 
     def parse_pdf(self, pdf, err):
         retval = True
-	try:
+        try:
             _, pdffile = self.PDFParser().parse(pdf, forceMode=True, manualAnalysis=True)
         except Exception as e:
             retval = False
@@ -400,7 +410,7 @@ class PeePDFHasher(Hasher):
 
     def make_tree_string(self, pdf, err):
         try:
-	        t_str = self.do_tree(pdf)
+            t_str = self.do_tree(pdf)
         except Exception as e:
             t_str = 'ERROR: ' + repr(e)
         return t_str
@@ -474,22 +484,31 @@ class Stasher(multiprocessing.Process):
     Stashers are the ant from the ant and the grashopper fable. They save
     things up for winter in persistent storage.
     '''
-    def __init__(self, qin, storage, counter, qmsg, nprocs):
+    def __init__(self, qin, store_type, store_name, counter, qmsg, nprocs):
         multiprocessing.Process.__init__(self)
         self.qin = qin
-        self.storage = StorageFactory().new_storage(storage)
         self.counter = counter
         self.qmsg = qmsg
         self.nprocs = nprocs
+        self.store_type = store_type
+        self.store_name = store_name
+        self.storage = None
+
+    def setup(self):
+        write("%s" % self.qmsg.get())
+        self.storage = StorageFactory().new_storage(self.store_type, name=self.store_name)
+        if not self.storage:
+            print("Error in storage setup")
+            return False
+        return self.storage.open()
 
     def run(self):
-        self.storage.open()
-        write("%s" % self.qmsg.get())
+        proceed = self.setup()
+        write("Proceeding: %s\n" % (str(proceed)))
         nfinished = 0
-        proceed = True
         while proceed:
             try:
-                t_data = self.qin.get(timeout=90)
+                t_data = self.qin.get()
             except Empty:
                 write('S Empty job queue.\n')
                 proceed = False
@@ -506,130 +525,20 @@ class Stasher(multiprocessing.Process):
                         write('S\t#%d ERROR storing\t%s\t%s\n' % (self.pid, t_data.get('pdf_md5'), str(e)))
                     self.counter.inc()
                 self.qin.task_done()
-        self.storage.close()
+
+        self.cleanup()
+        self.finish()
+
+    def cleanup(self):
+        try:
+            self.storage.close()
+        except AttributeError:
+            pass
         self.qmsg.task_done()
+
+    def finish(self):
         write('Stasher: Storage closed. Exiting.\n')
 
-
-class StorageFactory(object):
-
-    def new_storage(self, typ):
-        if typ == 'stdout':
-            return StdoutStorage()
-        if typ == 'db':
-            return DbStorage()
-        else:
-            return FileStorage(typ)
-
-class Storage(object):
-
-    def __init__(self):
-        pass
-    def open(self):
-        pass
-    def store(self):
-        pass
-    def close(self):
-        pass
-
-class StdoutStorage(Storage):
-    def __init__(self):
-        pass
- 
-class DbStorage(Storage):
-    
-    from db_mgmt import DBGateway
-    table = 'parsed_pdfs'
-    cols = ('category',
-        'pdf_md5',
-        'tree_md5',
-        'tree',
-        'graph',
-        'obf_js',
-        'obf_js_sdhash',
-        'de_js',
-        'de_js_sdhash',
-        'swf',
-        'swf_sdhash',
-        'abc',
-        'abc_sdhash',
-        'actionscript',
-        'as_sdhash',
-        'shellcode',
-        'fsize',
-        'pdfsize',
-        'bin_blob',
-        'urls',
-        'malformed',
-        'errors')
-    primary = 'pdf_md5'
-    
-    def __init__(self):
-        self.db = self.DBGateway()
-
-    def open(self):
-        self.db.create_table(self.table, cols=[ ' '.join([col, 'TEXT']) for col in self.cols], primary=self.primary)
-
-    def store(self, data_dict):
-        data_tuple = self.align_kwargs(data_dict)
-        #for i in range(len(data_dict)):
-        #    print data_dict[i].de_js;
-        #print data_dict.de_js
-        error = self.db.insert(self.table, cols=self.cols, vals=data_tuple)
-        if error:
-            err_tuple = (data_dict.get('pdf_md5'), 'DB_ERROR: %s' % repr(error))
-            self.db.insert(self.table, cols=['pdf_md5', 'errors'], vals=err_tuple)
-
-    
-    def close(self):
-        self.db.disconnect()
-
-    def align_kwargs(self, data):
-        aligned = []
-        for col in self.cols:
-            aligned.append(data.get(col, ''))
-        return tuple(aligned)
-
-
-class FileStorage(Storage):
-
-    import json
-
-    def __init__(self, path):
-        self.path = path
-        try:
-            self.fd = open(path, 'wb')
-        except IOError as e:
-            print e
-            print 'Unable to create output. Exiting.'
-            sys.exit(1)
-        else:
-            self.fd.close()
-
-    def open(self):
-        self.fd = open(self.path, 'wb')
-
-    def store(self, data_dict):
-        try:
-            #self.json.dump(data_dict, self.fd, separators=(',', ':'))
-            header = '%s\n%s\n%s\n' % ('-'*80, data_dict.get('pdf_md5', 'N/A'), '-'*80)
-            footer = '\n'
-            data = '\n\n'.join(['__%s\n%s' % (k,v) for k,v in data_dict.items()])
-            self.fd.write('%s\n%s\n%s\n' % (header, data, footer))
-        except IOError as e:
-            print e
-            print 'Unable to write to output file.'
-            sys.exit(1)
-            '''
-            except TypeError as e:
-                data_dict['error'].append('<FileStoreException>%s</FileStoreException>' % str(e))
-                self.json.dump(data_dict, self.fd, separators=(',', ':'), skipkeys=True)
-            '''
-        else:
-            self.fd.write('\n')
-
-    def close(self):
-        self.fd.close()
 
 class Counter(object):
 
@@ -659,6 +568,9 @@ class Counter(object):
 
 class Jobber(multiprocessing.Process):
 
+    sample_cols = ['name', 'path', 'family', 'category', 'type', 'set0', 'set1', 'set2', 'set3', 'set4']
+    job_cols = ['sample', 'started', 'finished']
+
     def __init__(self, job_list, job_qu, validator, counters, num_procs):
         multiprocessing.Process.__init__(self)
         self.jobs = job_list
@@ -667,20 +579,36 @@ class Jobber(multiprocessing.Process):
         self.counters = counters
         self.validator = validator
         self.num_procs = num_procs
+        #self.jobdb = DBGateway('pdf_samples.sqlite')
+        #self.parsedb = DBGateway()
 
     def run(self):
         write("Jobber started\n")
+        #self.jobdb.create_table('samples',  cols=[ ' '.join([c, 'TEXT']) for c in self.sample_cols], primary='name')
+        #self.jobdb.create_table('jobs', cols=[ ' '.join([c, 'TEXT']) for c in self.job_cols], primary='finished')
         job_cnt = 0
+        x = 0
         for job in self.jobs:
+            #while x < 320000:
+            #    x += 1
+            #    continue
             if self.validator.valid(job.path):
-                self.qu.put(job.path)
-                job_cnt += 1
+                #self.qu.put(job.path)
+                #if os.path.isfile(job):
+                #self.jobdb.insert('samples', cols=['name', 'path'], vals=(job.name, job.path))
+                #if self.parsedb.count('parsed_pdfs', 'pdf_md5', os.path.basename(job)) == 0:
+                    self.qu.put(job.path)
+                    #self.jobdb.insert('jobs', cols=['sample',], vals=(job.path,))
+                    job_cnt += 1
+                    if job_cnt % 100 == 0:
+                        sys.stdout.write("Jobs: %d\n" % job_cnt)
+                        sys.stdout.flush()
         for n in range(self.num_procs):
             self.qu.put(None)
         for counter in self.counters:
             counter.soft_max = job_cnt
             counter.hard_max.value = job_cnt
-        write("Job queues complete: %d processes. Counters set: %d.\n" % (self.num_procs, job_cnt))
+        write("\n-------------------------------------------\nJob queues complete: %d processes. Counters set: %d.\n-----------------------------------------------------\n" % (self.num_procs, job_cnt))
 
 
 class ProgressBar(multiprocessing.Process):
@@ -739,12 +667,21 @@ class ProgressBar(multiprocessing.Process):
 class Validator(object):
 
     def valid(self, obj):
-        pass
+        return False
 
 class FileValidator(Validator):
+    
+    def __init__(self):
+        #self.db = DBGateway()
+        pass
 
     def valid(self, fname):
+        '''
+        if os.path.isfile(fname):
+            return self.db.count('pdf_md5', fname)
+        '''
         return os.path.isfile(fname)
+
 
 def write(msg):
     with LOCK:
@@ -754,21 +691,31 @@ def write(msg):
 if __name__ == '__main__':
     pdfs = []
     args = ParserFactory().new_parser().parse()
-    num_procs = multiprocessing.cpu_count()/2 - 3
-    #num_procs = multiprocessing.cpu_count() - 4 
+    #num_procs = multiprocessing.cpu_count()/2 - 3
+    num_procs = multiprocessing.cpu_count() - 4 
     num_procs = num_procs if num_procs > 0 else 1
-    print 'Running on %d processes' % num_procs
+    print('Running on %d processes' % num_procs)
 
     if os.path.isdir(args.pdf_in):
         dir_name = os.path.join(args.pdf_in, '*')
-        print 'Examining directory %s' % dir_name
+        print('Examining directory %s' % dir_name)
         #pdfs = glob.iglob(dir_name)
         pdfs = scandir(args.pdf_in)
     elif os.path.exists(args.pdf_in):
-        pdfs.append(args.pdf_in)
-        print num_procs, 'processes analyzing file:', args.pdf_in
+        print('Analyzing file: %s' % args.pdf_in)
+        fin = ''
+        try:
+            fin = open(args.pdf_in, 'r')
+        except IOError as e:
+            print("%s" % e)
+            sys.exit(0)
+        else:
+            #pdfs.append(args.pdf_in)
+            pdfs = [ line.rstrip() for line in fin.readlines() ]
+            fin.close()
+        print('Found %d jobs in file' % len(pdfs))
     else:
-        print 'Unable to find PDF file/directory:', args.pdf_in
+        print('Unable to find PDF file/directory: %s' % args.pdf_in)
         sys.exit(1)
 
     '''
@@ -800,10 +747,10 @@ if __name__ == '__main__':
     Workers
     '''
     hf = HasherFactory()
-    print 'Creating hashing processings'
+    print('Creating hashing processings')
     hashers = [ hf.get_hasher(hasher=args.hasher, qin=jobs, qout=results, counter=job_counter, debug=args.debug) for cnt in range(num_procs) ]
-    print 'Creating stash process'
-    stasher = Stasher(qin=results, storage=args.out, counter=result_counter, qmsg=msgs, nprocs=num_procs)
+    print('Creating stash process')
+    stasher = Stasher(qin=results, store_type=args.out, store_name=args.name, counter=result_counter, qmsg=msgs, nprocs=num_procs)
     #progress = ProgressBar(counters, LOCK, msgs)
 
     '''

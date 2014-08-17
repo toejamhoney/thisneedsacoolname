@@ -6,3 +6,5 @@ local/*
 *.*.svn*
 */.svn
 .svn
+*.~*
+.*.swp

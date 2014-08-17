@@ -7,28 +7,73 @@ import cfg
 
 class DBGateway(object):
 
-    def __init__(self, dbtype=''):
+    def __init__(self, db='', path=''):
+        self.error = ''
         self.cfg = cfg.Config()
-        if dbtype is 'test':
+
+        if not db:
+            self.db_dir = self.cfg.setting('database', 'path')
+            self.db_name = self.cfg.setting('database', 'db')
+        elif db is 'test':
             self.db_dir = os.getcwd()
             self.db_name = 'testdb.sqlite'
         else:
-            self.db_dir = self.cfg.setting('database', 'path')
-            self.db_name = self.cfg.setting('database', 'db')
-        if not (self.db_dir and self.db_name):
+            if not path:
+                self.db_dir = self.cfg.setting('database', 'path')
+            else:
+                self.db_dir = path
+            self.db_name = db
+
+        if not self.db_dir or not self.db_name:
             print 'Error in database path or name. Check cfg file'
             sys.exit(1)
-        db_path = os.path.join(self.db_dir, self.db_name)
-        print 'Using:', db_path
-        self.db_conn = sqlite3.connect(db_path)
-        self.db_conn.text_factory = str
-        self.db_conn.row_factory = sqlite3.Row
-        self.db_curr = self.db_conn.cursor()
+
+        self.db_path = os.path.join(self.db_dir, self.db_name)
+        print('DBGateway connecting: %s' % self.db_path)
+        self.connect(self.db_path)
+
+    def query(self, cmd, params=''):
+        try:
+            if params:
+                self.db_curr.execute(cmd, params)
+            else:
+                self.db_curr.execute(cmd)
+            self.commit()
+            return True
+        except Exception as e:
+            self.error = str(e)
+            return False
+
+    def queryblock(self, cmd, params='', n=30):
+        done = False
+        tries = 0
+        while not done and tries < n:
+            tries += 1
+            try:
+                if params:
+                    self.db_curr.execute(cmd, params)
+                else:
+                    self.db_curr.execute(cmd)
+            except Exception as e:
+                self.error = str(e)
+            else:
+                done = True
+        return done
+
+    def get_error(self):
+        err = self.error
+        self.error = ''
+        return err
 
     def attach(self, db_name):
         db = "'" + os.path.join(config.SETTINGS.get('DB_DIR'), db_name) + "'"
         self.db_curr.execute('ATTACH DATABASE ' + db + ' AS ' + db_name)
         self.db_conn.commit()
+
+    def has_table(self, table):
+        cmd = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='%s'" % table
+        if self.query(cmd):
+            return self.db_curr.fetchone()[0]
 
     def create_table(self, table, **kwargs):
         try:
@@ -52,8 +97,21 @@ class DBGateway(object):
                 self.db_conn.commit()
                 #self.dump()
 
-    def disconnect(self):
+    def connect(self, path):
+        try:
+            self.db_conn = sqlite3.connect(path, 30)
+        except Exception as e:
+            sys.stderr.write("DBGateway connect: %s\n" % e)
+            return None
+        self.db_conn.text_factory = str
+        self.db_conn.row_factory = sqlite3.Row
+        self.db_curr = self.db_conn.cursor()
+
+    def commit(self):
         self.db_conn.commit()
+
+    def disconnect(self):
+        self.commit()
         self.db_conn.close()
 
     def drop_tables(self):
@@ -74,37 +132,41 @@ class DBGateway(object):
         else:
             kwargs['subs'] = '?'
         return kwargs
-    
+
     def insert(self, table, **kwargs):
         kwargs = self.format_args(**kwargs)
         cmd = 'INSERT OR REPLACE INTO ' + table + '(' + kwargs.get('cols') + ') VALUES (' + kwargs.get('subs') + ')'
         try:
             self.db_curr.execute(cmd, kwargs.get('vals'))
-        except sqlite3.IntegrityError as e:
-            if e.message.startswith('UNIQUE'):
-                pass
-            else:
-                return e
+            self.db_conn.commit()
         except Exception as e:
-            return e
-        self.db_conn.commit()
-        return ''
+            self.error = repr(e)
+            return False
+        else:
+            return True
 
     def select(self, cmd_str):
         cmd = 'SELECT %s' % cmd_str
         self.db_curr.execute(cmd)
         return self.db_curr
 
-    def count(self, table):
-        cmd = "SELECT COUNT (*) FROM " + table
+    def count(self, table, key, val):
+        cmd = "SELECT COUNT (*) FROM %s WHERE %s is '%s'" % (table, key, val)
         self.db_curr.execute(cmd)
         return self.db_curr.fetchone()[0]
 
-    def update(self, **kwargs):
-        kwargs = self.format_args(**kwargs)
-        cmd = 'UPDATE :table SET :col = :val WHERE :key = :kval'
-        self.db_curr.execute(cmd, kwargs)
-        self.db_conn.commit()
+    def update(self, dic):
+        cmd = "UPDATE {tbl} SET {col} ='{val}' WHERE {key} ='{kval}'".format(**dic)
+        print cmd
+        try:
+            #self.db_curr.execute(cmd, dic)
+            self.db_curr.execute(cmd)
+            self.db_conn.commit()
+        except Exception as e:
+            self.error = str(e)
+            return False
+        else:
+            return True
 
     def delete(self, *ids):
         pass

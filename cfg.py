@@ -51,7 +51,7 @@ class Config(object):
         try:
             fin = open('virtual-machines.txt', 'r')
         except IOError:
-            pass
+            sys.stderr.write("cfg could not open 'virtual-machines.txt'\tNo guests networked...\n")
         else:
             for line in fin:
                 try:
@@ -68,13 +68,14 @@ class Config(object):
 
 
     def setting(self, section='', option=''):
-        if section and self.parser.has_option(section, option):
+        if not section:
+            for s in self.parser.sections():
+                if self.parser.has_option(s, option):
+                    return self.parser.get(s, option)
+        elif self.parser.has_option(section, option):
             return self.parser.get(section, option)
         else:
-            for sect in self.parser.sections():
-                if self.parser.has_option(sect, option):
-                    return self.parser.get(sect, option)
-            
+            return None
 
     def __str__(self):
         rv = ''

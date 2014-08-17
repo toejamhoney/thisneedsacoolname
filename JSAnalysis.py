@@ -27,7 +27,7 @@ def create_objs(context, tree):
         info = build_pdf_objects.create_info_obj(tree)  
         context.eval("this.info = " + str(info) + ";")
         for key in info:
-            context.eval("this." + key + "= '" + info[key] + "';")
+            context.eval("this." + key + "= '" + re.escape(info[key]) + "';")
         context.eval("this.eval = eval")
         #print info
     except Exception as e:
@@ -44,7 +44,7 @@ def create_objs(context, tree):
 '''
     Eval the code and handle any exceptions it throws
 '''
-def eval_loop (code, context, old_msg = ""):
+def eval_loop (code, context, old_msg = "", limit=10):
     try:
         context.eval(code) 
         return context.eval("evalCode")
@@ -118,7 +118,7 @@ def eval_loop (code, context, old_msg = ""):
                     break
         else:
             return context.eval('evalCode')
-        eval_loop(code, context, se.message)
+        return eval_loop(code, context, se.message)
     except Exception as e1:
         #print e1.message
         return context.eval("evalCode")
