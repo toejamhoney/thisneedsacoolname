@@ -1,6 +1,7 @@
 graph motohandbook {
-node [shape=circle color=green height=0.01 width=0.01 label=""]
-edge [weight=0.01 penwidth=0.1]
+    outputorder="edgesfirst";
+node [shape=point color=green height=0.01 width=0.01 label="" nodesep=5]
+edge [weight=0.01 penwidth=0.1, color=black]
 0 -- 3281
 0 -- 3282
 3282 -- 769
