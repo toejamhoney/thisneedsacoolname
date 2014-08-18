@@ -1,6 +1,8 @@
 graph URL_188_40_70_29 {
-    node [shape=point];
-    edge [weight=0.1 penwidth=0.1];
+    outputorder="edgesfirst"
+    size="10,10!"
+    node [shape=point height=0.01 width=0.01 color=orange];
+    edge [weight=0.1 penwidth=0.2];
 "4985431e4310d061c524fa2f1b7bd0dd" -- "188.40.70.29"
 "60ece14f73d27bffccda13679507b993" -- "188.40.70.29"
 "4f1719efe129841e1ce0c1e5d83130c6" -- "188.40.70.29"
