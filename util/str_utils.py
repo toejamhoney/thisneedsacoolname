@@ -1,12 +1,12 @@
-import  htmlentitydefs, re
+import re
+
+import  htmlentitydefs
 
 def unescapeHTMLEntities(text):
     '''
         Removes HTML or XML character references and entities from a text string.
-        
         @param text The HTML (or XML) source text.
         @return The plain text, as a Unicode string, if necessary.
-        
         Author: Fredrik Lundh
         Source: http://effbot.org/zone/re-sub.htm#unescape-html
     '''
@@ -29,3 +29,19 @@ def unescapeHTMLEntities(text):
                 pass
         return text # leave as is
     return str(re.sub('&#?\w+;', fixup, text))
+
+'''
+    Check for swf content in a string by searching for CWS or FWS 
+    in the first three characters
+'''
+def isFlash (content):
+    content = unescapeHTMLEntities(content)
+    return content.startswith("CWS") or content.startswith("FWS")
+    '''
+    content = content[:3]
+    compare = ["CWS", "FWS"]
+    if content in compare:
+        return True
+    else:
+        return False
+    '''

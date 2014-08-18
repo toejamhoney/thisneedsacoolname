@@ -1,12 +1,14 @@
-import build_pdf_objects
 try:
     import PyV8
 except ImportError as e:
     print str(e)
     PyV8 = None
+
 import re
 import lxml.etree as ET
-from util import unescapeHTMLEntities
+
+import build_pdf_objects
+from util.str_utils import unescapeHTMLEntities
 
 reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
 

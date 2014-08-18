@@ -20,7 +20,7 @@ from sdhasher import make_sdhash
 import huntterp
 import xml_creator
 from JSAnalysis import analyse as analyse
-from util import unescapeHTMLEntities as unescapeHTML
+from util.str_utils import unescapeHTMLEntities as unescapeHTML
 
 try:
     import argparse
@@ -180,7 +180,7 @@ class Hasher(multiprocessing.Process):
             pdfsize = ''
             bin_blob = ''
             malformed = {}
-            
+
             '''
             Arguments are validated when Jobber adds them to the queue based
             on the Validators valid() return value. We can assume these will
@@ -273,24 +273,6 @@ class Hasher(multiprocessing.Process):
         except TypeError:
             err.append('<HashException>%s</HashException>' % traceback.format_exc())
         return t_hash
-    '''
-    def make_sdhash(self, data, err=''):
-        stdout = ''
-        try:
-            tmpfile = tempfile.NamedTemporaryFile(delete=True)
-        except IOError as e:
-            err.append('<SdHashException>%s</SdHashException>' % traceback.format_exc())
-            stdout = ''
-        else:
-            tmpfile.write(data)
-            cmd = ['sdhash', tmpfile.name]
-            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = proc.communicate(data)
-            tmpfile.close()
-        finally:
-            return stdout
-    '''
-
     def get_js(self, pdf, err=''):
         return 'Hasher: Unimplemented method, %s' % sys._getframe().f_code.co_name
     def get_debof_js(self, js, pdf, err=''):
@@ -309,7 +291,7 @@ class Hasher(multiprocessing.Process):
             urls = huntterp.find_in_hex(needle, haystack)
             urls += huntterp.find_unicode(haystack)
         return '\n'.join([u[1] for u in urls])
-    
+
 
 class PDFMinerHasher(Hasher):
 
@@ -442,11 +424,11 @@ class PeePDFHasher(Hasher):
                 nodesPrinted, nodeOutput = self.printTreeNode(object, objectsInfo, nodesPrinted)
                 treeOutput += nodeOutput
         return treeOutput
-            
+
     def printTreeNode(self, node, nodesInfo, expandedNodes = [], depth = 0, recursive = True):
         '''
             Given a tree prints the whole tree and its dependencies
-            
+
             @param node: Root of the tree
             @param nodesInfo: Information abour the nodes of the tree
             @param expandedNodes: Already expanded nodes
@@ -670,16 +652,8 @@ class Validator(object):
         return False
 
 class FileValidator(Validator):
-    
-    def __init__(self):
-        #self.db = DBGateway()
-        pass
 
     def valid(self, fname):
-        '''
-        if os.path.isfile(fname):
-            return self.db.count('pdf_md5', fname)
-        '''
         return os.path.isfile(fname)
 
 
@@ -688,18 +662,18 @@ def write(msg):
         sys.stdout.write(msg)
         sys.stdout.flush()
 
+
 if __name__ == '__main__':
     pdfs = []
     args = ParserFactory().new_parser().parse()
-    #num_procs = multiprocessing.cpu_count()/2 - 3
-    num_procs = multiprocessing.cpu_count() - 4 
+    num_procs = multiprocessing.cpu_count()/2 - 3
+    #num_procs = multiprocessing.cpu_count() - 4
     num_procs = num_procs if num_procs > 0 else 1
     print('Running on %d processes' % num_procs)
 
     if os.path.isdir(args.pdf_in):
         dir_name = os.path.join(args.pdf_in, '*')
         print('Examining directory %s' % dir_name)
-        #pdfs = glob.iglob(dir_name)
         pdfs = scandir(args.pdf_in)
     elif os.path.exists(args.pdf_in):
         print('Analyzing file: %s' % args.pdf_in)

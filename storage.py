@@ -114,8 +114,8 @@ class StdoutStorage(Storage):
 
 
 class DbStorage(Storage):
-    
-    
+
+
     def __init__(self, db=''):
         self.db = DBGateway(db + '.sqlite')
 
@@ -132,7 +132,7 @@ class DbStorage(Storage):
         if not self.db.insert(TABLE, cols=COLUMNS, vals=data_tuple):
             err_tuple = (data_dict.get('pdf_md5'), 'DB_ERROR: %s' % self.db.get_error())
             self.db.insert(TABLE, cols=['pdf_md5', 'errors'], vals=err_tuple)
-    
+
     def close(self):
         self.db.disconnect()
 

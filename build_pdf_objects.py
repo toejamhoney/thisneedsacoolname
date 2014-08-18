@@ -1,5 +1,7 @@
-import lxml.etree, re
-from util import unescapeHTMLEntities
+import re
+import lxml.etree
+
+from util.str_utils import unescapeHTMLEntities
 
 #Determine the type of tag used and return its value accordingly
 def get_value (elem, root):

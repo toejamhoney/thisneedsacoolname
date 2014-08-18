@@ -1,9 +1,11 @@
-import argparse, os, sys, xml_creator, re
-from JSAnalysis import analyse as analyse
-from util import unescapeHTMLEntities as unescapeHTML
+import os
+import re
+import sys
+import argparse
 
-#temp
-from os.path import basename
+import xml_creator
+from JSAnalysis import analyse as analyse
+from util.str_utils import unescapeHTMLEntities as unescapeHTML
 
 reJSscript = '<script[^>]*?contentType\s*?=\s*?[\'"]application/x-javascript[\'"][^>]*?>(.*?)</script>'
 
@@ -41,7 +43,7 @@ if __name__ == '__main__':
                     pdf['javascript'] += item + "\n\n"
                     pdf['deobfuscated'] += analyse(item, pdf['xml'])
             #print pdf['deobfuscated']
-            f = open ('deob_js/' + basename(args.pdf), 'w')
+            f = open ('deob_js/' + os.path.basename(args.pdf), 'w')
             f.write(pdf['deobfuscated'])
             f.close()
             if len(swf) > 0:

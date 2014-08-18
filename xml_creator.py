@@ -1,6 +1,8 @@
 import os
+import re
 import sys
-import re, lxml.etree as ET
+import lxml.etree as ET
+
 from  pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdftypes import PDFStream, PDFObjRef, PDFNotImplementedError
@@ -8,7 +10,7 @@ from pdfminer.pdftypes import PDFObjectNotFound
 from pdfminer.psparser import PSKeyword, PSLiteral
 from pdfminer.utils import isnumber
 #from JSAnalysis import isJavascript
-from SWFAnalysis import isFlash
+from util.str_utils import isFlash
 
 from scandir import scandir
 
