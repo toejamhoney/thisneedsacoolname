@@ -48,6 +48,9 @@ class FrankenParser(object):
         if isinstance(obj, dict):
             res += '<dict size="%' + str(len(obj)) + '">\n'
             for (k,v) in obj.iteritems():
+                k = re.sub(r'\W+', '', k)
+                if k.isdigit() or not k:
+                    k = 'xml_creator_' + k
                 res += '<' + k + '>'
                 res += self.dump(v)
                 res += '</' + k + '>\n'
@@ -149,11 +152,13 @@ class FrankenParser(object):
         visited = set() #keep track of the objects already visited
         for xref in doc.xrefs:
             for objid in xref.get_objids():
-                if objid in visited: continue
+                if objid in visited:
+                    continue
                 visited.add(objid)
                 try:
                     obj = doc.getobj(objid)
-                    if obj is None: continue
+                    if not obj:
+                        continue
                     res += '<object id="' + str(objid) + '">\n'
                     res += self.dump(obj)
                     res += '\n</object>\n\n'
@@ -204,6 +209,7 @@ class FrankenParser(object):
             tree = ET.fromstring(xml)
             return tree
         except Exception as e:
+            sys.stderr.write("xml_creator cannot create tree: %s\n" % e)
             return 'TREE_ERROR: %s' % str(e)
 
     '''
