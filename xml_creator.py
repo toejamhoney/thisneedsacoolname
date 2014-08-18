@@ -154,11 +154,11 @@ class FrankenParser(object):
             for objid in xref.get_objids():
                 if objid in visited:
                     continue
+                if objid == 21 or objid == 67:
+                    print objid
                 visited.add(objid)
                 try:
                     obj = doc.getobj(objid)
-                    if not obj:
-                        continue
                     res += '<object id="' + str(objid) + '">\n'
                     res += self.dump(obj)
                     res += '\n</object>\n\n'
