@@ -1,0 +1,25 @@
+graph SWF9002 {
+    node [shape=circle, color=lightblue, style=filled, fontsize=64]
+    edge [fontsize=48]
+    bgcolor=transparent
+    overlap=false
+    outputorder="edgesfirst"
+    size="10!,10!"
+"355" -- "8f1" [ len=3.4 label="66"]
+"355" -- "09a" [ len=5.0 label="50"]
+"355" -- "612" [ len=3.3 label="67"]
+"007" -- "355" [ len=5.0 label="50"]
+"007" -- "8f1" [ len=3.5 label="65"]
+"007" -- "09a" [ len=.4 label="96"]
+"007" -- "612" [ len=3.5 label="65"]
+"09a" -- "8f1" [ len=3.1 label="69"]
+"09a" -- "612" [ len=3.1 label="69"]
+"09a" -- "29d" [ len=3.5 label="65"]
+"612" -- "8f1" [ len=.3 label="97"]
+"29d" [color=blue]
+"29d" -- "8f1" [ len=1.7 label="83"]
+"29d" -- "612" [ len=1.6 label="84"]
+"29d" -- "09a" [len=3.5 label="65"]
+"29d" -- "007" [len=3.8 label="62"]
+"29d" -- "355" [len=2.3 label="77"]
+}

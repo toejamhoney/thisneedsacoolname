@@ -1,0 +1,25 @@
+graph SWF9002 {
+    node [shape=circle, color=lightblue, style=filled, fontsize=64]
+    edge [fontsize=48]
+    bgcolor=transparent
+    overlap=false
+    outputorder="edgesfirst"
+    size="10!,10!"
+"3558147ee7bf9fd3de263d55890b2dc8" -- "8f150dda8687fe6a09107f317cccc320" [ len=3.4 label="66"]
+"3558147ee7bf9fd3de263d55890b2dc8" -- "09a0f7aae0e22b5d80c7950890f3f738" [ len=5.0 label="50"]
+"3558147ee7bf9fd3de263d55890b2dc8" -- "6121e6ac93dd08c57a261655e4a10091" [ len=3.3 label="67"]
+"007a5982f971c3e4015dc377381ab1d5" -- "3558147ee7bf9fd3de263d55890b2dc8" [ len=5.0 label="50"]
+"007a5982f971c3e4015dc377381ab1d5" -- "8f150dda8687fe6a09107f317cccc320" [ len=3.5 label="65"]
+"007a5982f971c3e4015dc377381ab1d5" -- "09a0f7aae0e22b5d80c7950890f3f738" [ len=.4 label="96"]
+"007a5982f971c3e4015dc377381ab1d5" -- "6121e6ac93dd08c57a261655e4a10091" [ len=3.5 label="65"]
+"09a0f7aae0e22b5d80c7950890f3f738" -- "8f150dda8687fe6a09107f317cccc320" [ len=3.1 label="69"]
+"09a0f7aae0e22b5d80c7950890f3f738" -- "6121e6ac93dd08c57a261655e4a10091" [ len=3.1 label="69"]
+"09a0f7aae0e22b5d80c7950890f3f738" -- "29d3346c4f4f7c8d4151cf034815786a" [ len=3.5 label="65"]
+"6121e6ac93dd08c57a261655e4a10091" -- "8f150dda8687fe6a09107f317cccc320" [ len=.3 label="97"]
+"29d3346c4f4f7c8d4151cf034815786a" [color=blue]
+"29d3346c4f4f7c8d4151cf034815786a" -- "8f150dda8687fe6a09107f317cccc320" [ len=1.7 label="83"]
+"29d3346c4f4f7c8d4151cf034815786a" -- "6121e6ac93dd08c57a261655e4a10091" [ len=1.6 label="84"]
+"29d3346c4f4f7c8d4151cf034815786a" -- "09a0f7aae0e22b5d80c7950890f3f738" [len=3.5 label="65"]
+"29d3346c4f4f7c8d4151cf034815786a" -- "007a5982f971c3e4015dc377381ab1d5" [len=3.8 label="62"]
+"29d3346c4f4f7c8d4151cf034815786a" -- "3558147ee7bf9fd3de263d55890b2dc8" [len=2.3 label="77"]
+}
