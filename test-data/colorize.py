@@ -2,27 +2,34 @@ import sys
 import os
 import re
 
-fin = open(sys.argv[1], 'r')
-colors = {}
+fin_fams = open(sys.argv[1], 'r')
+fin_bwdot = open(sys.argv[2], 'r')
+fout = open("pretty-colors-%s" % (sys.argv[2]), 'w')
 
-for line in fin:
-    color, md5 = line.rstrip().split(',')
-    colors[md5] = str(int(color) + 1)
+def write_nodes(fin, fout):
+    for line in fin:
+        color_id, md5 = line.rstrip().split(',')
+        line = '"%s" [color=%s]\n' % (md5, color_id)
+        fout.write(line)
+        sys.stdout.write(line)
 
-fin.close()
+def get_colors(fin):
+    for line in fin:
+        color_id, md5 = line.rstrip().split(',')
+        colors[md5] = str(int(color_id) + 1)
 
-fin = open(sys.argv[2], 'r')
-fout = open(sys.argv[3], 'w')
+def color_edge(line):
+    line = re.sub(r'\n$', "[color=%s]\n" % cid, line)
 
-for line in fin:
-    sys.stdout.write("%s\t" % line)
+before_edges = True
+for line in fin_bwdot:
+    sys.stdout.write("%s\n\t" % line)
     md5, _, host = line.partition(" -- ")
-    if host:
-        cid = colors.get(md5.strip('"'))
-        if cid:
-            line = re.sub(r'\n$', "[color=%s]\n" % cid, line)
-    sys.stdout.write("%s\n" % line)
+    if host and before_edges:
+        write_nodes(fin_fams, fout)
+        before_edges = False
     fout.write(line)
 
-fin.close()
+fin_fams.close()
+fin_bwdot.close()
 fout.close()
