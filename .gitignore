@@ -8,3 +8,4 @@ local/*
 .svn
 *.~*
 .*.swp
+test-data/
